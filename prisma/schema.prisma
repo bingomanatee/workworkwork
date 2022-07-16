@@ -11,22 +11,30 @@ datasource db {
 }
 
 model task_type {
-  id   String @id @default(uuid())
-  name String
-  tasks task[]
+  id          String      @id @default(uuid())
+  name        String
+  tasks       task[]
+  notes       String?
+  order       Int         @default(0)
+  parent_id   String?
+  parent      task_type?  @relation(name: "parent", fields: [parent_id], references: [id])
+  child_tasks task_type[] @relation(name: "parent")
+  deleted     Boolean     @default(false)
 }
 
 model task {
-  id           String    @id @default(uuid())
-  type         task_type @relation(fields: [task_type_id], references: [id])
+  id           String       @id @default(uuid())
+  type         task_type    @relation(fields: [task_type_id], references: [id])
   task_type_id String
-  task_events task_event[]
+  task_events  task_event[]
+  notes        String?
 }
 
 model task_event {
-    id           String    @id @default(uuid())
-    task         task @relation(fields: [task_id], references: [id])
-    task_id      String
-    event        String
-    data         Json
+  id        String   @id @default(uuid())
+  task      task     @relation(fields: [task_id], references: [id])
+  task_id   String
+  event     String
+  data      Json
+  createdAt DateTime @default(now())
 }
