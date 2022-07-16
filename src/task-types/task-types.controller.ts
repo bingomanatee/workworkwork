@@ -41,7 +41,6 @@ export class TaskTypesController {
     return this.taskTypesService.demote(id);
   }
 
-
   @Patch(':id')
   update(
     @Param('id') id: string,
