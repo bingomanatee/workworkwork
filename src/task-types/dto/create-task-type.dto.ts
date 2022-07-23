@@ -3,4 +3,5 @@ export class CreateTaskTypeDto {
   notes?: string;
   parent_id?: string;
   order?: number;
+  interval: number;
 }

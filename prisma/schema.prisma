@@ -20,6 +20,7 @@ model task_type {
   parent      task_type?  @relation(name: "parent", fields: [parent_id], references: [id])
   child_tasks task_type[] @relation(name: "parent")
   deleted     Boolean     @default(false)
+  interval    Int         @default(0)
 }
 
 model task {
@@ -28,6 +29,13 @@ model task {
   task_type_id String
   task_events  task_event[]
   notes        String?
+  data         Json?
+  createdAt    DateTime    @default(now())
+  completedAt  DateTime?
+  status       String      @default("started")
+  parent_task  task?       @relation(name: "parent", fields: [parent_task_id], references: [id])
+  parent_task_id String?
+  child_tasks  task[]      @relation(name: "parent")
 }
 
 model task_event {
@@ -37,4 +45,41 @@ model task_event {
   event     String
   data      Json
   createdAt DateTime @default(now())
+}
+
+model github_data_files {
+      path         String @id
+      sha          String
+      size         Int
+      createdAt    DateTime @default(now())
+      status       String   @default("created")
+}
+
+model covid_stats {
+    id                 Int    @id
+    uid                Int
+    date_published     DateTime @db.Date
+    last_update        DateTime
+    confirmed          Int?
+    people_tested      Int?
+    incident_rate       Float?
+    testing_rate         Float?
+    hospitalization_rate Float?
+    deaths             Int?
+    recovered          Int?
+    active             Int?
+}
+
+model covid_location {
+    uid                Int @id
+    iso2               String
+    iso3               String
+    code3              String?
+    fips               String?
+    admin2             String?
+    province_state     String?
+    country_region     String
+    latitude           Float?
+    longitude          Float?
+    population         Int?
 }

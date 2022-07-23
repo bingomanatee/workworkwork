@@ -17,18 +17,29 @@ export class TasksService {
   findAll(params: {
     skip?: number;
     take?: number;
-    cursor?: Prisma.task_typeWhereUniqueInput;
-    where?: Prisma.task_typeWhereInput;
-    orderBy?: Prisma.task_typeOrderByWithRelationInput;
+    cursor?: Prisma.taskWhereUniqueInput;
+    where?: Prisma.taskWhereInput;
+    orderBy?: Prisma.taskOrderByWithRelationInput;
   }): Promise<task[]> {
-    const { skip, take, cursor, where, orderBy } = params;
-    return this.prisma.task.findMany({
+    let { skip, take, cursor, where, orderBy } = params;
+    if (!orderBy) {
+      orderBy = {
+        createdAt: 'desc',
+      };
+    }
+    if (!take) {
+      take = 200;
+    }
+    const find = {
       skip,
       take,
       cursor,
       where,
       orderBy,
-    });
+    }
+
+    console.log('finding tasks:', find);
+    return this.prisma.task.findMany(find);
   }
 
   findOne(id: string) {

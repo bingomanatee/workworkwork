@@ -12,4 +12,34 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       await app.close();
     });
   }
+
+  async makeTask(typeName, data, parent_task_id = null) {
+    const type = await this.task_type.findFirstOrThrow({
+      where: {
+        name: typeName,
+      },
+    });
+
+    const task = await this.task.create({
+      data: {
+        task_type_id: type.id,
+        data,
+        parent_task_id,
+      },
+    });
+
+    return { type, task };
+  }
+
+  async finishTask(task, status = 'done') {
+    await this.task.update({
+      where: {
+        id: task.id,
+      },
+      data: {
+        completedAt: new Date(),
+        status,
+      },
+    });
+  }
 }
