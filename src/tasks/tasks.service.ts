@@ -36,7 +36,10 @@ export class TasksService {
   }
 
   update(id: string, updateTaskDto: UpdateTaskDto) {
-    return `This action updates a #${id} task`;
+    return this.prisma.task_type.update({
+      where: { id },
+      data: updateTaskDto,
+    });
   }
 
   remove(id: string) {

@@ -8,7 +8,14 @@ import { task_type, Prisma } from '@prisma/client';
 export class TaskTypesService {
   constructor(private prisma: PrismaService) {}
 
-  create(createTaskTypeDto: CreateTaskTypeDto) {
+  async create(createTaskTypeDto: CreateTaskTypeDto) {
+    const siblings = await this.siblings(createTaskTypeDto);
+    if (siblings) {
+      const maxOrder = siblings.reduce((m, sib) => {
+        return Math.max(m, sib.order);
+      }, 0);
+      createTaskTypeDto.order = maxOrder + 1;
+    }
     return this.prisma.task_type.create({
       data: createTaskTypeDto,
     });
@@ -59,8 +66,8 @@ export class TaskTypesService {
     });
   }
 
-  private async findPeers(record) {
-    const peers = await this.prisma.task_type.findMany({
+  private siblings(record) {
+    return this.prisma.task_type.findMany({
       where: {
         parent_id: {
           equals: record.parent_id,
@@ -70,6 +77,10 @@ export class TaskTypesService {
         order: 'asc',
       },
     });
+  }
+
+  private async findPeers(record) {
+    const peers = await this.siblings(record);
 
     return peers.reduce(
       (memo, tt) => {
