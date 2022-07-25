@@ -5,7 +5,8 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Octokit } from '@octokit/rest';
+import { once } from 'lodash';
+import axios from 'axios';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const GitHub = require('github-api');
@@ -39,8 +40,6 @@ async function climbTree(repo, path, tree) {
 const cred = {
   token: process.env.GITHUB_TOKEN,
 };
-
-console.log('========= github gred:', cred);
 
 console.log('cred:', cred);
 
@@ -105,25 +104,28 @@ export class GithubService {
       const dm = err.response?.data?.message;
 
       if (dm && typeof dm === 'string' && /API rate limit exceeded/.test(dm)) {
-        console.log('createPollTask rate limit error');
+        this.prisma.eventForTask(task.id, 'createPollTask rate limit error');
         const gh = new GitHub(cred);
         gh.getRateLimit().getRateLimit((err, data) => {
           console.log('>>>>>> rate limit:', data);
         });
       } else {
-        console.warn('error in cratePollTask:', err.message);
+        this.prisma.eventForTask(
+          task.id,
+          'error in cratePollTask:',
+          err.message,
+        );
       }
       await this.prisma.finishTask(task, 'error');
     }
   }
 
-  private async getGithubFiles(gh) {
+  private async getGithubFiles(task, gh) {
     const repo = gh.getRepo(GITHUB_USER, GITHUB_REPO);
     const { data: branch } = await repo.getBranch('master');
 
     const {
       commit: {
-        sha,
         commit: { tree },
       },
     } = branch;
@@ -136,14 +138,14 @@ export class GithubService {
           /^CSSE_DailyReports.*csv$/.test(t.path),
       );
     } catch (err) {
-      console.log('climb tree error: ', err);
+      this.prisma.eventForTask(task.id, 'climb tree error: ', err.message);
     }
   }
 
   async pollGithub(task) {
     const gh = new GitHub(cred);
     try {
-      const files = await this.getGithubFiles(gh);
+      const files = await this.getGithubFiles(task, gh);
       if (Array.isArray(files)) {
         await Promise.all(
           files.map(async (file) => {
@@ -187,6 +189,10 @@ export class GithubService {
       },
     });
 
+    if (existing) {
+      this.prisma.eventForTask(task.id, 'existing file', existing);
+    }
+
     if (!existing) {
       const newFile = await this.prisma.github_data_files.create({
         data: {
@@ -206,13 +212,16 @@ export class GithubService {
 
       await this.addToQueue(readType, readTask, {});
     } else if (existing.size < size) {
-      await this.prisma.github_data_files.update({
+      const newFile = await this.prisma.github_data_files.update({
         where: { path },
         data: {
+          status: 'created',
           sha,
           size,
         },
       });
+      this.prisma.eventForTask(task.id, 'changed sha/size of file', newFile);
+
       const { type: readType, task: readTask } = await this.prisma.makeTask(
         'read csv snapshot',
         {
@@ -235,53 +244,97 @@ export class GithubService {
     });
 
     if (!file) {
-      console.log('cannot find file for ', task);
+      this.prisma.eventForTask(task.id, 'cannot find file for task', task);
       return this.prisma.finishTask(task, 'error');
     }
-    if (file.status !== 'created') {
+    if (!['downloaded'].includes(file.status)) {
       //@TODO: process file size change
-      console.log('file is not new -- leaving alone', task);
+      this.prisma.eventForTask(
+        task.id,
+        'file is not downloaded -- leaving alone',
+        {
+          task,
+          file,
+        },
+      );
       return this.prisma.finishTask(task, 'done');
     }
 
     /*  const gh = new GitHub(cred);
     const repo = gh.getRepo(GITHUB_USER, GITHUB_REPO);*/
-    const octokit = new Octokit({
+    /*    const octokit = new Octokit ({
       auth: process.env.GITHUB_TOKEN,
-    });
+    });*/
 
     try {
-      console.log('getting blob of ', file.sha);
-      let {
-        data: { content },
-      } = await octokit.rest.git.getBlob({
-        owner: GITHUB_USER,
-        repo: GITHUB_REPO,
-        file_sha: file.sha,
-      });
-
-      console.log('done getting blob of ', file.sha);
-
-      const contentString = new Buffer(content, 'base64').toString();
-      content = '';
-
-      const fullPath = path.resolve(
-        __dirname,
-        `../../../data_files/${file.path}`,
+      this.prisma.eventForTask(
+        task.id,
+        `getting blob of ${file.path} / ${file.sha}`,
       );
-      fs.writeFile(fullPath, contentString, async (fileErr) => {
+
+      const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/blobs/${file.sha}`;
+      console.log('getting content for file', file, 'from', url);
+      const result = await axios.get(url);
+      const { content } = result.data;
+      console.log('content gotten for file', file);
+
+      this.prisma.eventForTask(
+        task.id,
+        `blob content returned from  ${file.path} / ${file.sha}`,
+        {
+          stringLength: typeof content === 'string' ? content.length : '?',
+        },
+      );
+
+      if (!(typeof content === 'string' && content.length)) {
+        throw new Error('bad content returned from api');
+      }
+
+      await this.writeGithubFile(task, file, content);
+    } catch (err) {
+      this.prisma.eventForTask(task.id, 'error reading blob', err.message``);
+      this.prisma.finishTask(task, 'error');
+    }
+  }
+
+  async writeGithubFile(task, file, content) {
+    const contentString = new Buffer(content, 'base64').toString();
+
+    const csvPath = path.resolve(
+      __dirname,
+      `../../../../data_files/${file.path}`,
+    );
+    await this.prisma.eventForTask(task.id, 'writing to file', {
+      path: csvPath,
+    });
+    fs.writeFile(csvPath, contentString, async (fileErr) => {
+      try {
         if (fileErr) {
           await this.prisma.finishTask(task, 'error');
-          console.log('file write error: ', fileErr);
+          this.prisma.eventForTask(task.id, 'file write error: ', {
+            message: fileErr.message,
+            path: csvPath,
+          });
           await this.prisma.github_data_files.update({
             where: {
               path: file.path,
             },
             data: {
-              status: 'error reading',
+              status: 'error writing',
             },
           });
         } else {
+          this.prisma.eventForTask(task.id, 'file written', {
+            path: csvPath,
+          });
+          await this.prisma.github_data_files.update({
+            where: {
+              path: file.path,
+            },
+            data: {
+              status: 'downloaded',
+            },
+          });
           await this.prisma.finishTask(task);
           const { task: writeTask, type } = await this.prisma.makeTask(
             'write csv records',
@@ -293,9 +346,12 @@ export class GithubService {
           );
           return this.addToQueue(type, writeTask, file);
         }
-      });
-    } catch (err) {
-      console.log('---- error reading blob', err);
-    }
+      } catch (err) {
+        await this.prisma.eventForTask(task.id, 'error writing file', {
+          message: err.message,
+        });
+        this.prisma.finishTask(task, 'error');
+      }
+    });
   }
 }

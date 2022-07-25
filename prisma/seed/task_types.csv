@@ -1,0 +1,9 @@
+id,name,notes,order,parent_id,deleted,interval
+53e71bcc-aa99-4f7b-9234-e1b6d8726ba8,Delete Me,A task to delete,0,,t,0
+47e8de45-ce25-4abd-9053-b0402cb53942,Another Thing,delete me,0,,t,0
+d6591c05-c201-44f4-bdbe-32d26405943b,summarize Data,cache summaries for local areas,0,15967828-afcc-4b46-8769-30598808af3e,f,0
+4efe5f56-2214-4872-b86b-d8bd9fb292c3,poll github,Use Github API to determine currently stored data files,0,f6ca62b1-d3bf-48f6-a7ce-ed9ba9a1c9f4,f,0
+bdb9d701-31c6-4832-a63f-5aebe0a908ac,process github file,Compare Github API snapshot with previous snapshot,1,4efe5f56-2214-4872-b86b-d8bd9fb292c3,f,0
+31ba8ef8-6c07-40bc-9de8-5538c1c2cde0,read csv snapshot,"For every new/ resized github file, load the snapshots from github into S3",0,,f,0
+15967828-afcc-4b46-8769-30598808af3e,write csv records,extract records from CSV,0,31ba8ef8-6c07-40bc-9de8-5538c1c2cde0,f,0
+f6ca62b1-d3bf-48f6-a7ce-ed9ba9a1c9f4,update data,check the sizes and names of the github files,0,,f,900

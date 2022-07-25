@@ -49,6 +49,7 @@ export class TaskProcessor {
       case 'read csv snapshot':
         await this.github.readCsvSnapshot(task);
         break;
+
       case 'write csv records':
         await this.csv.writeCsvRecords(task);
         break;

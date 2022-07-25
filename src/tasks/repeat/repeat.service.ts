@@ -11,6 +11,53 @@ export class RepeatService {
     @InjectQueue('tasks') private taskQueue: Queue,
   ) {}
 
+ // @Cron('*/15 * * * * *')
+  initialCron() {
+    this.prisma.task_type
+      .findMany({
+        where: {
+          interval: {
+            gt: 0,
+          },
+        },
+      })
+      .then((types) => {
+        return Promise.all(
+          types.map(async (type) => {
+            const { id } = type;
+            if (this.startTaskIds.includes(id)) {
+              return;
+            }
+            this.startTaskIds.push(id);
+
+            console.log('running initial task', type.name);
+            return this.initTask(type, true);
+          }),
+        );
+      });
+  }
+
+  private async initTask(type, initial = false) {
+    const task = await this.prisma.task.create({
+      data: {
+        task_type_id: type.id,
+        data: {
+          initial,
+        },
+      },
+    });
+
+    const def = {
+      task_id: task.id,
+      type_id: type.id,
+      type: type.name,
+      createdAt: task.createdAt.toUTCString(),
+    };
+    console.log('====== running task ', type.name, def);
+
+    this.taskQueue.add(def);
+  }
+
   @Cron('*/15 * * * * *')
   handleCron() {
     this.prisma.task_type
@@ -47,30 +94,17 @@ export class RepeatService {
             ) {
               console.log(
                 'task type',
-                type.id,
+                type.name,
                 'has been run recently -- ignoring',
-                recent
               );
               return; // interval has been satisfied
             }
 
-            const task = await this.prisma.task.create({
-              data: {
-                task_type_id: type.id,
-              },
-            });
-
-            const def = {
-              task_id: task.id,
-              type_id: type.id,
-              type: type.name,
-              createdAt: task.createdAt.toUTCString(),
-            };
-            console.log('---->>> creating task for type', type.id, def);
-
-            this.taskQueue.add(def);
+            return this.initTask(type);
           }),
         );
       });
   }
+
+  startTaskIds: any[] = [];
 }

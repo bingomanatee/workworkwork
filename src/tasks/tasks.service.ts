@@ -21,6 +21,7 @@ export class TasksService {
     where?: Prisma.taskWhereInput;
     orderBy?: Prisma.taskOrderByWithRelationInput;
   }): Promise<task[]> {
+    // eslint-disable-next-line prefer-const
     let { skip, take, cursor, where, orderBy } = params;
     if (!orderBy) {
       orderBy = {
@@ -28,7 +29,7 @@ export class TasksService {
       };
     }
     if (!take) {
-      take = 200;
+      take = 1000;
     }
     const find = {
       skip,
@@ -36,25 +37,32 @@ export class TasksService {
       cursor,
       where,
       orderBy,
-    }
+      include: {
+        task_events: true,
+      },
+    };
 
-    console.log('finding tasks:', find);
     return this.prisma.task.findMany(find);
   }
 
   findOne(id: string) {
-    return `This action returns a #${id} task`;
+    return this.prisma.task.findUnique({
+      where: { id },
+      include: {
+        task_events: true,
+      },
+    });
   }
 
   update(id: string, updateTaskDto: UpdateTaskDto) {
-    return this.prisma.task_type.update({
+    return this.prisma.task.update({
       where: { id },
       data: updateTaskDto,
     });
   }
 
   remove(id: string) {
-    return this.prisma.task_type.delete({
+    return this.prisma.task.delete({
       where: { id },
     });
   }

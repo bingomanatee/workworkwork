@@ -11,8 +11,8 @@ datasource db {
 }
 
 model task_type {
-  id          String      @id @default(uuid())
-  name        String
+  id          String  @id @default(uuid())
+  name        String     @unique
   tasks       task[]
   notes       String?
   order       Int         @default(0)
@@ -43,7 +43,7 @@ model task_event {
   task      task     @relation(fields: [task_id], references: [id])
   task_id   String
   event     String
-  data      Json
+  data      Json?
   createdAt DateTime @default(now())
 }
 

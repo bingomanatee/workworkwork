@@ -1,6 +1,9 @@
 import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const NOOP = () => {};
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
   async onModuleInit() {
@@ -41,5 +44,32 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
         status,
       },
     });
+  }
+
+  eventForTask(id, event: string, data = {}) {
+    if (data !== null) {
+      try {
+        const jsonString = JSON.stringify(data);
+      } catch (err) {
+        data = {};
+      }
+    } else {
+      data = {};
+    }
+
+    const createData = {
+      task_id: id,
+      event,
+      data,
+    };
+
+    this.task_event
+      .create({
+        data: createData,
+      })
+      .then(NOOP)
+      .catch((err) => {
+        console.log('data:', createData, 'task event error:', err.message);
+      });
   }
 }

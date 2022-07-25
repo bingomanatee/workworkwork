@@ -6,7 +6,12 @@ import { Queue } from 'bull';
 import { parse } from 'csv-parse';
 import CaseRow from './CaseRow';
 import * as fs from 'fs';
-import path from 'path';
+import * as path from 'path';
+import { once } from 'lodash';
+
+const IDENTITY = (input) => input;
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const NOOP = () => {};
 
 @Injectable()
 export class CsvService {
@@ -19,69 +24,71 @@ export class CsvService {
   ) {}
 
   async writeCsvRecords(task: task) {
+    const fullPath = path.resolve(
+      __dirname,
+      `../../../../data_files/${task.data['filePath']}`,
+    );
+
+    console.log('write csv records from ', fullPath);
+
+    const target = this;
+    let rowCount = 0;
+    const onRecord = (record) => new CaseRow(record);
+
+    const onError = (err) => {
+      this.prisma.eventForTask(task.id, 'error in sql', {
+        message: err.message,
+      });
+      target.prisma.eventForTask(task.id, 'error', { message: err.message });
+      target.prisma.finishTask(task, 'error');
+    };
+
+    const onEnd = () => {
+      this.prisma.eventForTask(task.id, 'row count', {
+        rowCount,
+      });
+      target.flushRows();
+      target.prisma.finishTask(task);
+    };
+
+    const onData = (row) => {
+      //@TODO: write to database
+      // at this point we are just running over the rows
+      // and incrementing the count
+      ++rowCount;
+      target.pushRow(row);
+    };
+
+    CsvService.processCSV(fullPath, {
+      onData,
+      onEnd,
+      onError,
+      onRecord,
+    });
+  }
+
+  static processCSV(
+    fullPath,
+    { onError = IDENTITY, onData, onEnd = NOOP, onRecord = IDENTITY },
+  ) {
     const input = parse({
       cast: true,
       cast_date: true,
       columns: true,
       delimiter: ',',
-      on_record: (record) => {
-        return new CaseRow(record);
-      },
+      on_record: onRecord,
     });
 
-    const fullPath = path.resolve(
-      __dirname,
-      `../../../data_files/${task.data['filePath']}`,
-    );
+    const error = once(onError);
 
     const stream = fs.createReadStream(fullPath);
 
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const target = this;
-    let rowCount = 0;
-    input
-      .on('data', function (row) {
-        //@TODO: write to database
-        // at this point we are just running over the rows
-        // and incrementing the count
-        ++rowCount;
-        target.pushRow(row);
-      })
-      .on('error', (err) => {
-        this.prisma.task_event.create({
-          data: {
-            task_id: task.id,
-            event: 'error in sql',
-            data: {
-              message: err.message,
-            },
-          },
-        });
-      })
-      .on('end', function () {
-        target.prisma.task_event.create({
-          data: {
-            task_id: task.id,
-            event: 'row count',
-            data: {
-              rowCount,
-            },
-          },
-        });
-        target.flushRows();
-      });
-
+    input.on('data', onData).on('error', error).on('end', onEnd);
     stream.on('data', (chunk) => input.write(chunk.toString()));
-
     stream.once('end', () => {
-      this.flushRows();
       input.end();
     });
-
-    stream.once('error', () => {
-      this.flushRows(true);
-      input.end();
-    });
+    stream.once('error', error);
   }
 
   pushRow(row: CaseRow) {
@@ -89,5 +96,7 @@ export class CsvService {
     this.pendingLocations.push(row.location);
   }
 
-  private flushRows(error = false) {}
+  private flushRows(error = false) {
+    console.log('flush rows');
+  }
 }
