@@ -5,7 +5,6 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import * as fs from 'fs';
 import * as path from 'path';
-import { once } from 'lodash';
 import axios from 'axios';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -48,7 +47,7 @@ console.log('cred:', cred);
 @Injectable()
 export class GithubService {
   constructor(
-    private prisma: PrismaService,
+    private prismaService: PrismaService,
     @InjectQueue('tasks') private taskQueue: Queue,
   ) {}
 
@@ -61,62 +60,32 @@ export class GithubService {
     });
   }
 
-  /*  private async prisma.makeTask(typeName, data, parent_task_id = null) {
-    const type = await this.prisma.task_type.findFirstOrThrow({
-      where: {
-        name: typeName,
-      },
-    });
-
-    const task = await this.prisma.task.create({
-      data: {
-        task_type_id: type.id,
-        data,
-        parent_task_id,
-      },
-    });
-
-    return { type, task };
-  }
-
-  async prisma.finishTask(task, status = 'done') {
-    await this.prisma.task.update({
-      where: {
-        id: task.id,
-      },
-      data: {
-        completedAt: new Date(),
-        status,
-      },
-    });
-  }
-*/
-
   async createPollTask(task: task) {
     try {
-      const { type: pollType, task: subtask } = await this.prisma.makeTask(
-        'poll github',
-        task.id,
-      );
+      const { type: pollType, task: subtask } =
+        await this.prismaService.makeTask('poll github', task.id);
       await this.addToQueue(pollType, subtask);
-      await this.prisma.finishTask(task);
+      await this.prismaService.finishTask(task);
     } catch (err) {
       const dm = err.response?.data?.message;
 
       if (dm && typeof dm === 'string' && /API rate limit exceeded/.test(dm)) {
-        this.prisma.eventForTask(task.id, 'createPollTask rate limit error');
+        await this.prismaService.eventForTask(
+          task.id,
+          'createPollTask rate limit error',
+        );
         const gh = new GitHub(cred);
         gh.getRateLimit().getRateLimit((err, data) => {
           console.log('>>>>>> rate limit:', data);
         });
       } else {
-        this.prisma.eventForTask(
+        await this.prismaService.eventForTask(
           task.id,
           'error in cratePollTask:',
           err.message,
         );
       }
-      await this.prisma.finishTask(task, 'error');
+      await this.prismaService.finishTask(task, 'error');
     }
   }
 
@@ -138,7 +107,11 @@ export class GithubService {
           /^CSSE_DailyReports.*csv$/.test(t.path),
       );
     } catch (err) {
-      this.prisma.eventForTask(task.id, 'climb tree error: ', err.message);
+      await this.prismaService.eventForTask(
+        task.id,
+        'climb tree error: ',
+        err.message,
+      );
     }
   }
 
@@ -147,22 +120,21 @@ export class GithubService {
     try {
       const files = await this.getGithubFiles(task, gh);
       if (Array.isArray(files)) {
-        await Promise.all(
-          files.map(async (file) => {
-            try {
-              const { type: processType, task: processTask } =
-                await this.prisma.makeTask(
-                  'process github file',
-                  { ...file },
-                  task.id,
-                );
-              await this.addToQueue(processType, processTask, { file });
-            } catch (err) {
-              console.log('create file error: ', err);
-            }
-          }),
-        );
-        return this.prisma.finishTask(task);
+        for (let i = 0; i < files.length; ++i) {
+          const file = files[i];
+          try {
+            const { type: processType, task: processTask } =
+              await this.prismaService.makeTask(
+                'process github file',
+                { ...file },
+                task.id,
+              );
+            await this.addToQueue(processType, processTask, { file });
+          } catch (err) {
+            console.log('create file error: ', err);
+          }
+        }
+        return this.prismaService.finishTask(task);
       } else {
         console.log('--- odd files:', files);
       }
@@ -176,25 +148,26 @@ export class GithubService {
       } else {
         console.log('--- error in pollGithub:', err);
       }
-      return this.prisma.finishTask(err);
+      return this.prismaService.finishTask(task, err.message);
     }
   }
 
   async processFile(task) {
     const { sha, path, size } = task.data;
 
-    const existing = await this.prisma.github_data_files.findFirst({
-      where: {
-        path,
-      },
-    });
+    const existing =
+      await this.prismaService.prisma.github_data_files.findFirst({
+        where: {
+          path,
+        },
+      });
 
     if (existing) {
-      this.prisma.eventForTask(task.id, 'existing file', existing);
+      await this.prismaService.eventForTask(task.id, 'existing file', existing);
     }
 
     if (!existing) {
-      const newFile = await this.prisma.github_data_files.create({
+      const newFile = await this.prismaService.prisma.github_data_files.create({
         data: {
           path,
           sha,
@@ -202,17 +175,18 @@ export class GithubService {
         },
       });
 
-      const { type: readType, task: readTask } = await this.prisma.makeTask(
-        'read csv snapshot',
-        {
-          file_path: newFile.path,
-        },
-        task.id,
-      );
+      const { type: readType, task: readTask } =
+        await this.prismaService.makeTask(
+          'read csv snapshot',
+          {
+            file_path: newFile.path,
+          },
+          task.id,
+        );
 
       await this.addToQueue(readType, readTask, {});
     } else if (existing.size < size) {
-      const newFile = await this.prisma.github_data_files.update({
+      const newFile = await this.prismaService.prisma.github_data_files.update({
         where: { path },
         data: {
           status: 'created',
@@ -220,44 +194,41 @@ export class GithubService {
           size,
         },
       });
-      this.prisma.eventForTask(task.id, 'changed sha/size of file', newFile);
-
-      const { type: readType, task: readTask } = await this.prisma.makeTask(
-        'read csv snapshot',
-        {
-          file_path: path,
-          lastSize: existing.size,
-        },
+      await this.prismaService.eventForTask(
         task.id,
+        'changed sha/size of file',
+        newFile,
       );
+
+      const { type: readType, task: readTask } =
+        await this.prismaService.makeTask(
+          'read csv snapshot',
+          {
+            file_path: path,
+            lastSize: existing.size,
+          },
+          task.id,
+        );
 
       await this.addToQueue(readType, readTask, {});
     }
-    await this.prisma.finishTask(task);
+    await this.prismaService.finishTask(task);
   }
 
   async readCsvSnapshot(task) {
-    const file = await this.prisma.github_data_files.findFirst({
+    const file = await this.prismaService.prisma.github_data_files.findFirst({
       where: {
         path: task.data.file_path,
       },
     });
 
     if (!file) {
-      this.prisma.eventForTask(task.id, 'cannot find file for task', task);
-      return this.prisma.finishTask(task, 'error');
-    }
-    if (!['downloaded'].includes(file.status)) {
-      //@TODO: process file size change
-      this.prisma.eventForTask(
+      await this.prismaService.eventForTask(
         task.id,
-        'file is not downloaded -- leaving alone',
-        {
-          task,
-          file,
-        },
+        'cannot find file for task',
+        task.data
       );
-      return this.prisma.finishTask(task, 'done');
+      return this.prismaService.finishTask(task, 'error');
     }
 
     /*  const gh = new GitHub(cred);
@@ -267,9 +238,10 @@ export class GithubService {
     });*/
 
     try {
-      this.prisma.eventForTask(
+      await this.prismaService.eventForTask(
         task.id,
-        `getting blob of ${file.path} / ${file.sha}`,
+        'getting blob',
+        file
       );
 
       const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/blobs/${file.sha}`;
@@ -278,7 +250,7 @@ export class GithubService {
       const { content } = result.data;
       console.log('content gotten for file', file);
 
-      this.prisma.eventForTask(
+      await this.prismaService.eventForTask(
         task.id,
         `blob content returned from  ${file.path} / ${file.sha}`,
         {
@@ -292,8 +264,12 @@ export class GithubService {
 
       await this.writeGithubFile(task, file, content);
     } catch (err) {
-      this.prisma.eventForTask(task.id, 'error reading blob', err.message``);
-      this.prisma.finishTask(task, 'error');
+      await this.prismaService.eventForTask(
+        task.id,
+        'error reading blob',
+        err.message,
+      );
+      await this.prismaService.finishTask(task, 'error');
     }
   }
 
@@ -304,18 +280,18 @@ export class GithubService {
       __dirname,
       `../../../../data_files/${file.path}`,
     );
-    await this.prisma.eventForTask(task.id, 'writing to file', {
+    await this.prismaService.eventForTask(task.id, 'writing to file', {
       path: csvPath,
     });
     fs.writeFile(csvPath, contentString, async (fileErr) => {
       try {
         if (fileErr) {
-          await this.prisma.finishTask(task, 'error');
-          this.prisma.eventForTask(task.id, 'file write error: ', {
+          await this.prismaService.finishTask(task, 'error');
+          await this.prismaService.eventForTask(task.id, 'file write error: ', {
             message: fileErr.message,
             path: csvPath,
           });
-          await this.prisma.github_data_files.update({
+          await this.prismaService.prisma.github_data_files.update({
             where: {
               path: file.path,
             },
@@ -324,10 +300,10 @@ export class GithubService {
             },
           });
         } else {
-          this.prisma.eventForTask(task.id, 'file written', {
+          await this.prismaService.eventForTask(task.id, 'file written', {
             path: csvPath,
           });
-          await this.prisma.github_data_files.update({
+          await this.prismaService.prisma.github_data_files.update({
             where: {
               path: file.path,
             },
@@ -335,8 +311,8 @@ export class GithubService {
               status: 'downloaded',
             },
           });
-          await this.prisma.finishTask(task);
-          const { task: writeTask, type } = await this.prisma.makeTask(
+          await this.prismaService.finishTask(task);
+          const { task: writeTask, type } = await this.prismaService.makeTask(
             'write csv records',
             {
               filePath: file.path,
@@ -347,10 +323,10 @@ export class GithubService {
           return this.addToQueue(type, writeTask, file);
         }
       } catch (err) {
-        await this.prisma.eventForTask(task.id, 'error writing file', {
+        await this.prismaService.eventForTask(task.id, 'error writing file', {
           message: err.message,
         });
-        this.prisma.finishTask(task, 'error');
+        await this.prismaService.finishTask(task, 'error');
       }
     });
   }

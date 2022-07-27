@@ -9,21 +9,33 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { once } from 'lodash';
 
+import create from '@wonderlandlabs/collect';
+
 const IDENTITY = (input) => input;
+const FLUSH_INTERVAL = 200;
+const MESSAGE_INTERVAL = 10;
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const NOOP = () => {};
 
 @Injectable()
 export class CsvService {
   pendingCases = [];
-  pendingLocations = [];
+  pendingLocations = create(new Map());
+  flushedLocations = create(new Map());
 
   constructor(
-    private prisma: PrismaService,
+    private prismaService: PrismaService,
     @InjectQueue('tasks') private taskQueue: Queue,
   ) {}
 
+  initQueues() {
+    this.pendingCases = [];
+    this.pendingLocations = create(new Map());
+    this.flushedLocations = create(new Map());
+  }
+
   async writeCsvRecords(task: task) {
+    this.initQueues();
     const fullPath = path.resolve(
       __dirname,
       `../../../../data_files/${task.data['filePath']}`,
@@ -35,20 +47,22 @@ export class CsvService {
     let rowCount = 0;
     const onRecord = (record) => new CaseRow(record);
 
-    const onError = (err) => {
-      this.prisma.eventForTask(task.id, 'error in sql', {
+    const onError = async (err) => {
+      await this.prismaService.eventForTask(task.id, 'error in sql', {
         message: err.message,
       });
-      target.prisma.eventForTask(task.id, 'error', { message: err.message });
-      target.prisma.finishTask(task, 'error');
+      await target.prismaService.eventForTask(task.id, 'error', {
+        message: err.message,
+      });
+      await target.prismaService.finishTask(task, 'error');
     };
 
-    const onEnd = () => {
-      this.prisma.eventForTask(task.id, 'row count', {
+    const onEnd = async () => {
+      await this.prismaService.eventForTask(task.id, 'row count', {
         rowCount,
       });
-      target.flushRows();
-      target.prisma.finishTask(task);
+      await target.flushRows(task);
+      await target.prismaService.finishTask(task);
     };
 
     const onData = (row) => {
@@ -56,7 +70,10 @@ export class CsvService {
       // at this point we are just running over the rows
       // and incrementing the count
       ++rowCount;
-      target.pushRow(row);
+      if (!(rowCount % FLUSH_INTERVAL)) {
+        target.flushRows(task);
+      }
+      target.pushRow(row, task);
     };
 
     CsvService.processCSV(fullPath, {
@@ -91,12 +108,207 @@ export class CsvService {
     stream.once('error', error);
   }
 
-  pushRow(row: CaseRow) {
-    this.pendingCases.push(row.case);
-    this.pendingLocations.push(row.location);
+  pushRow(row: CaseRow, task) {
+    if (task.data.skipData !== true) this.pendingCases.push(row.case);
+    if (task.data.skipLocation !== true) {
+      const location = row.location;
+      // @ts-ignore
+      if (!this.flushedLocations.hasKey(location.uid)) {
+        // @ts-ignore
+        this.pendingLocations.set(location.uid, location);
+      }
+    }
   }
 
-  private flushRows(error = false) {
-    console.log('flush rows');
+  messageInterval = 0;
+
+  private async flushRows(task) {
+    ++this.messageInterval;
+    await this.flushLocations(task, !(this.messageInterval % MESSAGE_INTERVAL));
+    await this.flushCases(task, !(this.messageInterval % MESSAGE_INTERVAL));
+  }
+
+  private async flushLocations(task, message) {
+    if (this.pendingLocations.size < 1) {
+      return;
+    }
+    this.pendingLocations.forEach((loc, id) => {
+      this.flushedLocations.set(id, loc);
+    });
+
+    await this.prismaService.prisma.covid_location
+      .createMany({
+        data: this.pendingLocations.items,
+        skipDuplicates: true,
+      })
+      .catch((err) => {
+        return this.prismaService.eventForTask(
+          task.id,
+          'error in flushing locations',
+          {
+            message: err.message,
+            first: this.pendingLocations.firstItem,
+            last: this.pendingLocations.lastItem,
+          },
+        );
+      });
+
+    if (message) {
+      await this.prismaService.eventForTask(task.id, 'flushing locations', {
+        first: this.pendingLocations.firstItem,
+        last: this.pendingLocations.lastItem,
+      });
+    }
+    this.pendingLocations.clear();
+  }
+
+  private async flushCases(task, message) {
+    const cases = create(this.pendingCases).sort((c1, c2) => {
+      return c1.id - c2.id;
+    });
+    this.pendingCases = [];
+    if (cases.size < 1) {
+      return;
+    }
+    const caseMap = create(
+      cases.reduce((m, data) => {
+        m.set(data.id, data);
+        return m;
+      }, new Map()),
+    );
+
+    const [minId, maxId] = cases.reduce(
+      (m, covidCase) => {
+        if (m[0] > covidCase.id) {
+          m[0] = covidCase.id;
+        }
+        if (m[1] < covidCase.id) {
+          m[1] = covidCase.id;
+        }
+        return m;
+      },
+      [Number.MAX_VALUE, 0],
+    );
+
+    if (message) {
+      await this.prismaService.eventForTask(
+        task.id,
+        'case ids',
+        cases
+          .cloneShallow()
+          .map((data) => data.id)
+          .first(10),
+      );
+    }
+
+    try {
+      const relativeIDs = await this.prismaService.prisma.covid_stats.findMany({
+        where: {
+          AND: [{ id: { gte: minId } }, { id: { lte: maxId } }],
+        },
+        select: {
+          id: true,
+          date_published: true,
+          last_update: true,
+        },
+        orderBy: {
+          id: 'asc',
+        },
+      });
+
+      relativeIDs.forEach((record) => {
+        caseMap.deleteKey(record.id);
+      });
+    } catch (err) {
+      await this.prismaService.eventForTask(
+        task.id,
+        'error in reduction query',
+        {
+          minId,
+          maxId,
+          message: err.message,
+        },
+      );
+    }
+
+    if (caseMap.size < 1) {
+      if (message) {
+        await this.prismaService.eventForTask(
+          task.id,
+          'all cases already saved',
+          {
+            minId,
+            maxId,
+          },
+        );
+      }
+      return;
+    }
+
+    const first = cases.firstItem;
+    const last = cases.lastItem;
+
+    if (message) {
+      await this.prismaService.eventForTask(task.id, 'flushing cases', {
+        first,
+        last,
+      });
+    }
+    await this.prismaService.prisma.covid_stats
+      .createMany({
+        data: caseMap.items,
+        skipDuplicates: true,
+      })
+      .catch((err) => {
+        return this.prismaService.eventForTask(
+          task.id,
+          'error in flushing rows',
+          {
+            message: err.message,
+            first,
+            last,
+          },
+        );
+      });
+  }
+
+  taskTest() {
+    const fullPath = path.resolve(
+      __dirname,
+      `../../../../data_files/CSSE_DailyReports.csv`,
+    );
+
+    console.log('--------------- testing ', fullPath, ' ----------');
+    let rowCount = 0;
+    const onRecord = (record) => {
+      const out = new CaseRow(record);
+      console.log('record', record, 'translated to ', out.location);
+      return out;
+    };
+
+    const onError = (err) => {
+      console.log('error', err);
+    };
+
+    const onEnd = () => {
+      console.log('---------------test done ----------');
+    };
+
+    const onData = (row) => {
+      //@TODO: write to database
+      // at this point we are just running over the rows
+      // and incrementing the count
+      ++rowCount;
+      if (rowCount > 100) {
+        throw new Error('stopping after 100');
+      }
+    };
+
+    CsvService.processCSV(fullPath, {
+      onData,
+      onEnd,
+      onError,
+      onRecord,
+    });
   }
 }

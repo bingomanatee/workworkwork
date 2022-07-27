@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("MIGRATION_DATABASE_URL")
 }
 
 model task_type {
@@ -31,6 +31,7 @@ model task {
   notes        String?
   data         Json?
   createdAt    DateTime    @default(now())
+  last_work_done  DateTime?
   completedAt  DateTime?
   status       String      @default("started")
   parent_task  task?       @relation(name: "parent", fields: [parent_task_id], references: [id])

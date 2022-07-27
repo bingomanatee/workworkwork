@@ -9,16 +9,30 @@ async function main() {
     const types = [];
     CsvService.processCSV(data, {
       onData(row) {
+        row.deleted = row.deleted === 't';
         types.push(row);
       },
       onEnd() {
+        const noParentTypes = types.map((type) => ({
+          ...type,
+          parent_id: null,
+        }));
         prisma.task_type
           .createMany({
-            data: types,
+            data: noParentTypes,
             skipDuplicates: true,
           })
           .catch(fail)
-          .then(done);
+          .then(() => {
+            Promise.all(
+              types.map((type) => {
+                prisma.task_type.update({
+                  where: { id: type.id },
+                  data: type,
+                });
+              }),
+            ).catch(fail);
+          });
       },
     });
   });

@@ -9,11 +9,20 @@ import { GithubService } from './github/github.service';
 import { CsvService } from './csv/csv.service';
 @Module({
   controllers: [TasksController],
-  providers: [TasksService, PrismaService, RepeatService, TaskProcessor, GithubService, CsvService],
+  providers: [
+    TasksService,
+    PrismaService,
+    RepeatService,
+    TaskProcessor,
+    GithubService,
+    CsvService,
+  ],
   imports: [
     BullModule.registerQueue({
       name: 'tasks',
     }),
   ],
 })
-export class TasksModule {}
+export class TasksModule {
+
+}

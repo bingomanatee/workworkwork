@@ -8,6 +8,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import { PrismaService } from './prisma.service';
 import { CovidCasesModule } from './covid-cases/covid-cases.module';
+import { LocationsModule } from './locations/locations.module';
 
 /*
 const REDIS = {
@@ -30,6 +31,7 @@ console.log('redis def:', REDIS);
       redis: REDIS,
     }),
     CovidCasesModule,
+    LocationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

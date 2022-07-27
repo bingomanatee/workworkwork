@@ -11,7 +11,7 @@ export class TaskProcessor {
   constructor(
     private readonly tasksService: TasksService,
     @InjectQueue('tasks') private taskQueue: Queue,
-    private prisma: PrismaService,
+    private prismaService: PrismaService,
     private github: GithubService,
     private csv: CsvService,
   ) {}
@@ -21,12 +21,12 @@ export class TaskProcessor {
     const { task_id, type_id } = job.data;
 
     const [type, task] = await Promise.all([
-      this.prisma.task_type.findUniqueOrThrow({
+      this.prismaService.prisma.task_type.findUniqueOrThrow({
         where: {
           id: type_id,
         },
       }),
-      this.prisma.task.findUniqueOrThrow({
+      this.prismaService.prisma.task.findUniqueOrThrow({
         where: {
           id: task_id,
         },

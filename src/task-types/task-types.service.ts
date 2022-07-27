@@ -6,7 +6,7 @@ import { task_type, Prisma } from '@prisma/client';
 
 @Injectable()
 export class TaskTypesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prismaService: PrismaService) {}
 
   async create(createTaskTypeDto: CreateTaskTypeDto) {
     const siblings = await this.siblings(createTaskTypeDto);
@@ -16,18 +16,18 @@ export class TaskTypesService {
       }, 0);
       createTaskTypeDto.order = maxOrder + 1;
     }
-    return this.prisma.task_type.create({
+    return this.prismaService.prisma.task_type.create({
       data: createTaskTypeDto,
     });
   }
 
-  findAll(params: {
+  async findAll(params: {
     skip?: number;
     take?: number;
     cursor?: Prisma.task_typeWhereUniqueInput;
     where?: Prisma.task_typeWhereInput;
     orderBy?: Prisma.task_typeOrderByWithRelationInput;
-  }): Promise<task_type[]> {
+  }) {
     // eslint-disable-next-line prefer-const
     let { skip, take, cursor, where, orderBy } = params;
     if (!where) {
@@ -35,7 +35,7 @@ export class TaskTypesService {
         deleted: false,
       };
     }
-    return this.prisma.task_type.findMany({
+    return this.prismaService.prisma.task_type.findMany({
       skip,
       take,
       cursor,
@@ -44,8 +44,8 @@ export class TaskTypesService {
     });
   }
 
-  findOne(id: string): Promise<task_type | null> {
-    return this.prisma.task_type.findUnique({
+  async findOne(id: string): Promise<task_type | null> {
+    return this.prismaService.prisma.task_type.findUnique({
       where: {
         id,
       },
@@ -53,21 +53,21 @@ export class TaskTypesService {
   }
 
   update(id: string, updateTaskTypeDto: UpdateTaskTypeDto) {
-    return this.prisma.task_type.update({
+    return this.prismaService.prisma.task_type.update({
       where: { id },
       data: updateTaskTypeDto,
     });
   }
 
   remove(id: string) {
-    return this.prisma.task_type.update({
+    return this.prismaService.prisma.task_type.update({
       where: { id },
       data: { deleted: true },
     });
   }
 
-  private siblings(record) {
-    return this.prisma.task_type.findMany({
+  private async siblings(record) {
+    return this.prismaService.prisma.task_type.findMany({
       where: {
         parent_id: {
           equals: record.parent_id,
@@ -102,21 +102,19 @@ export class TaskTypesService {
   }
 
   async reorder(taskTypes) {
-    return Promise.all(
-      taskTypes.map((record, index) => {
-        return (
-          record &&
-          this.prisma.task_type.update({
-            where: {
-              id: record.id,
-            },
-            data: {
-              order: index,
-            },
-          })
-        );
-      }),
-    );
+    for (let index = 0; index < taskTypes.length; ++index) {
+      const record = taskTypes[index];
+      if (record) {
+        await this.prismaService.prisma.task_type.update({
+          where: {
+            id: record.id,
+          },
+          data: {
+            order: index,
+          },
+        });
+      }
+    }
   }
 
   async promote(id: string) {

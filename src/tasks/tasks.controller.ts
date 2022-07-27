@@ -10,14 +10,23 @@ import {
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { CsvService } from './csv/csv.service';
 
 @Controller('tasks')
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(
+    private readonly tasksService: TasksService,
+    private readonly csvService: CsvService,
+  ) {}
 
   @Post()
   create(@Body() createTaskDto: CreateTaskDto) {
     return this.tasksService.create(createTaskDto);
+  }
+
+  @Post(':id')
+  repeat(@Param('id') id: string) {
+    return this.tasksService.repeatTask(id);
   }
 
   @Get()
@@ -27,7 +36,13 @@ export class TasksController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
+    if (id === 'taskTest') return this.taskTest();
     return this.tasksService.findOne(id);
+  }
+
+  @Get('taskTest')
+  taskTest() {
+    return this.csvService.taskTest();
   }
 
   @Patch(':id')

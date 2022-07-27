@@ -10,6 +10,7 @@ function asInt(value) {
 }
 
 function asFloat(value) {
+  if (typeof value === 'number') return value;
   try {
     const i = parseFloat(value);
     if (isNaN(i)) {
@@ -38,13 +39,12 @@ function asString(str) {
 }
 
 export const LOCATION_KEYS = [
-  'id',
-  'date_published',
   'uid',
   'iso2',
   'iso3',
   'code3',
-
+  'latitude',
+  'longitude',
   'fips',
   'admin2',
   'province_state',
@@ -96,7 +96,6 @@ export const STAT_KEYS = [
   'mortality_rate',
   'testing_rate',
   'hospitalization_rate',
-  'population',
 ];
 
 export default class CaseRow {
@@ -111,13 +110,15 @@ export default class CaseRow {
     });
   }
 
-  get case() {
+  get case(): CaseRow {
+    // @ts-ignore
     return STAT_KEYS.reduce((memo, key) => {
       memo[key] = this[key];
       return memo;
     }, {});
   }
-  get location() {
+  get location(): CaseRow {
+    // @ts-ignore
     return LOCATION_KEYS.reduce((memo, key) => {
       memo[key] = this[key];
       return memo;
