@@ -3,6 +3,9 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma.service';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import * as dayjs from 'dayjs';
+
+const STALE_TASK_AGE = 20;
 
 @Injectable()
 export class RepeatService {
@@ -88,6 +91,76 @@ export class RepeatService {
     }
 
     return this.initTask(type);
+  }
+
+  @Cron('*/30 * * * * *')
+  private async reanimateDeadTasks() {
+    const startedTasks = await this.prismaService.prisma.task.findMany({
+      where: {
+        status: 'started',
+      },
+      include: {
+        task_events: true,
+        type: true,
+      },
+    });
+
+    console.log('started tasks:', startedTasks.length);
+
+    const firstDead = startedTasks
+      .filter((task) => task.type.interval === 0)
+      .find((task) => {
+        let date = task.createdAt;
+
+        task.task_events.forEach((event) => {
+          if (event.createdAt.getTime() > date.getTime()) {
+            date = event.createdAt;
+          }
+        });
+
+        const day = dayjs(date);
+        const age = dayjs().diff(day, 'minute');
+
+        if (age > STALE_TASK_AGE) {
+          return true;
+        }
+      });
+
+    if (firstDead) {
+      await this.prismaService.eventForTask(
+        firstDead.id,
+        'marked as stale- restarting',
+      );
+      this.prismaService.finishTask(firstDead, 'stale');
+      const { data, parent_task_id, task_type_id } = firstDead;
+      const duplicateTask = await this.prismaService.prisma.task.create({
+        data: {
+          data,
+          parent_task_id,
+          task_type_id,
+        },
+      });
+
+      this.addToQueue(firstDead.type, duplicateTask);
+      console.log(
+        '--- reanimating ',
+        firstDead.id,
+        'as',
+        duplicateTask,
+        firstDead.type,
+      );
+    } else {
+      console.log('no dead tasks in ', startedTasks.length, 'tasks');
+    }
+  }
+
+  private async addToQueue(type, task, data = {}) {
+    this.taskQueue.add({
+      ...data,
+      type: type.name,
+      type_id: type.id,
+      task_id: task.id,
+    });
   }
 
   private async initTask(type, initial = false) {

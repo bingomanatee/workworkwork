@@ -2,11 +2,12 @@ import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 let prisma: PrismaClient;
+let globalWithPrisma;
 
 if (process.env.NODE_ENV === 'production') {
   prisma = new PrismaClient();
 } else {
-  const globalWithPrisma = global as typeof globalThis & {
+  globalWithPrisma = global as typeof globalThis & {
     prisma: PrismaClient;
   };
   if (!globalWithPrisma.prisma) {
@@ -97,8 +98,13 @@ export class PrismaService implements OnModuleInit {
 
     try {
       await this.prisma.$disconnect();
-      global.prisma = new PrismaClient();
-      this.prisma = prisma;
+      if (globalWithPrisma) {
+        globalWithPrisma.prisma = new PrismaClient();
+        this.prisma = globalWithPrisma.prisma;
+      } else {
+        prisma = new PrismaClient();
+        this.prisma = prisma;
+      }
       doneFn();
     } catch (err) {
       console.log('error rebooting prisma');

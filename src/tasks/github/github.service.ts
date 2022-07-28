@@ -226,7 +226,7 @@ export class GithubService {
       await this.prismaService.eventForTask(
         task.id,
         'cannot find file for task',
-        task.data
+        task.data,
       );
       return this.prismaService.finishTask(task, 'error');
     }
@@ -238,31 +238,36 @@ export class GithubService {
     });*/
 
     try {
-      await this.prismaService.eventForTask(
-        task.id,
-        'getting blob',
-        file
-      );
+      await this.prismaService.eventForTask(task.id, 'getting blob', file);
 
       const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/blobs/${file.sha}`;
       console.log('getting content for file', file, 'from', url);
-      const result = await axios.get(url);
-      const { content } = result.data;
-      console.log('content gotten for file', file);
 
-      await this.prismaService.eventForTask(
-        task.id,
-        `blob content returned from  ${file.path} / ${file.sha}`,
-        {
-          stringLength: typeof content === 'string' ? content.length : '?',
-        },
-      );
+      const int = setInterval(async () => {
+        this.prismaService.eventForTask(task.id, '...reading file');
+      }, 120 * 1000);
+      try {
+        const result = await axios.get(url);
+        const { content } = result.data;
+        console.log('content gotten for file', file);
+        clearInterval(int);
+        await this.prismaService.eventForTask(
+          task.id,
+          `blob content returned from  ${file.path} / ${file.sha}`,
+          {
+            stringLength: typeof content === 'string' ? content.length : '?',
+          },
+        );
 
-      if (!(typeof content === 'string' && content.length)) {
-        throw new Error('bad content returned from api');
+        if (!(typeof content === 'string' && content.length)) {
+          throw new Error('bad content returned from api');
+        }
+
+        await this.writeGithubFile(task, file, content);
+      } catch (err) {
+        clearInterval(int);
+        throw err;
       }
-
-      await this.writeGithubFile(task, file, content);
     } catch (err) {
       await this.prismaService.eventForTask(
         task.id,

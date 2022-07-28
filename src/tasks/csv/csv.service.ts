@@ -10,9 +10,10 @@ import * as path from 'path';
 import { once } from 'lodash';
 
 import create from '@wonderlandlabs/collect';
+import { Cron } from '@nestjs/schedule';
 
 const IDENTITY = (input) => input;
-const FLUSH_INTERVAL = 200;
+const FLUSH_INTERVAL = 1000;
 const MESSAGE_INTERVAL = 10;
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const NOOP = () => {};
@@ -136,9 +137,21 @@ export class CsvService {
       this.flushedLocations.set(id, loc);
     });
 
+    const locations = this.pendingLocations.items;
+    this.pendingLocations.clear();
+
+    this.writeQueue.push({
+      type: 'locations',
+      locations,
+      task,
+      message,
+    });
+  }
+
+  async processLocations({ locations, message, task }) {
     await this.prismaService.prisma.covid_location
       .createMany({
-        data: this.pendingLocations.items,
+        data: locations,
         skipDuplicates: true,
       })
       .catch((err) => {
@@ -159,7 +172,6 @@ export class CsvService {
         last: this.pendingLocations.lastItem,
       });
     }
-    this.pendingLocations.clear();
   }
 
   private async flushCases(task, message) {
@@ -170,6 +182,48 @@ export class CsvService {
     if (cases.size < 1) {
       return;
     }
+
+    this.writeQueue.push({
+      type: 'cases',
+      data: {
+        cases,
+        task,
+        message,
+      },
+    });
+  }
+
+  writeQueue = [];
+  processQueue = new Set();
+  @Cron('*/5 * * * * *')
+  async clearWriteQueue() {
+    if (this.writeQueue.length && this.processQueue.size < 3) {
+      const job = this.writeQueue.pop();
+
+      this.processQueue.add(job);
+
+      try {
+        switch (job.type) {
+          case 'cases':
+            await this.processCases(job.data);
+            break;
+
+          case 'locations':
+            await this.processLocations(job.data);
+            break;
+
+          default:
+            console.log('unknown job type', job);
+        }
+      } catch (err) {
+        console.log('error processing job: ', err, job);
+      }
+
+      this.processQueue.delete(job);
+    }
+  }
+
+  async processCases({ cases, task, message }) {
     const caseMap = create(
       cases.reduce((m, data) => {
         m.set(data.id, data);
@@ -189,17 +243,6 @@ export class CsvService {
       },
       [Number.MAX_VALUE, 0],
     );
-
-    if (message) {
-      await this.prismaService.eventForTask(
-        task.id,
-        'case ids',
-        cases
-          .cloneShallow()
-          .map((data) => data.id)
-          .first(10),
-      );
-    }
 
     try {
       const relativeIDs = await this.prismaService.prisma.covid_stats.findMany({
