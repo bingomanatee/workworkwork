@@ -1,0 +1,74 @@
+[
+  {
+    "id": "53e71bcc-aa99-4f7b-9234-e1b6d8726ba8",
+    "name": "Delete Me",
+    "notes": "A task to delete",
+    "order": 0,
+    "parent_id": null,
+    "deleted": true,
+    "interval": 0
+  },
+  {
+    "id": "47e8de45-ce25-4abd-9053-b0402cb53942",
+    "name": "Another Thing",
+    "notes": "delete me",
+    "order": 0,
+    "parent_id": null,
+    "deleted": true,
+    "interval": 0
+  },
+  {
+    "id": "d6591c05-c201-44f4-bdbe-32d26405943b",
+    "name": "summarize Data",
+    "notes": "cache summaries for local areas",
+    "order": 0,
+    "parent_id": "15967828-afcc-4b46-8769-30598808af3e",
+    "deleted": false,
+    "interval": 0
+  },
+  {
+    "id": "4efe5f56-2214-4872-b86b-d8bd9fb292c3",
+    "name": "poll github",
+    "notes": "Use Github API to determine currently stored data files",
+    "order": 0,
+    "parent_id": "f6ca62b1-d3bf-48f6-a7ce-ed9ba9a1c9f4",
+    "deleted": false,
+    "interval": 0
+  },
+  {
+    "id": "bdb9d701-31c6-4832-a63f-5aebe0a908ac",
+    "name": "process github file",
+    "notes": "Compare Github API snapshot with previous snapshot",
+    "order": 1,
+    "parent_id": "4efe5f56-2214-4872-b86b-d8bd9fb292c3",
+    "deleted": false,
+    "interval": 0
+  },
+  {
+    "id": "31ba8ef8-6c07-40bc-9de8-5538c1c2cde0",
+    "name": "read csv snapshot",
+    "notes": "For every new/ resized github file, load the snapshots from github into S3",
+    "order": 0,
+    "parent_id": null,
+    "deleted": false,
+    "interval": 0
+  },
+  {
+    "id": "15967828-afcc-4b46-8769-30598808af3e",
+    "name": "write csv records",
+    "notes": "extract records from CSV",
+    "order": 0,
+    "parent_id": "31ba8ef8-6c07-40bc-9de8-5538c1c2cde0",
+    "deleted": false,
+    "interval": 0
+  },
+  {
+    "id": "f6ca62b1-d3bf-48f6-a7ce-ed9ba9a1c9f4",
+    "name": "update data",
+    "notes": "check the sizes and names of the github files",
+    "order": 0,
+    "parent_id": null,
+    "deleted": false,
+    "interval": 900
+  }
+]

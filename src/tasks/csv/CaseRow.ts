@@ -1,4 +1,4 @@
-import * as dayjs from 'dayjs';
+import dayjs from 'dayjs'
 
 function asInt(value) {
   const i = parseInt(value);

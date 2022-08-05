@@ -9,6 +9,8 @@ import { BullModule } from '@nestjs/bull';
 import { PrismaService } from './prisma.service';
 import { CovidCasesModule } from './covid-cases/covid-cases.module';
 import { LocationsModule } from './locations/locations.module';
+import { HexesModule } from './hexes/hexes.module';
+import { CountriesModule } from './countries/countries.module';
 
 /*
 const REDIS = {
@@ -32,6 +34,8 @@ console.log('redis def:', REDIS);
     }),
     CovidCasesModule,
     LocationsModule,
+    HexesModule,
+    CountriesModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
