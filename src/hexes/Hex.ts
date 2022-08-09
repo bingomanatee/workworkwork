@@ -38,7 +38,7 @@ export default class Hex {
     const { _boundary, ps } = this;
     return {
       hindex: this.hindex,
-      boundary: this._boundary,
+      boundary: this.boundary,
       shapes: this.shapes(_boundary, ps).map((s) => ({ points: s.points })),
       level: this.level,
       latitude: lt,
@@ -59,24 +59,24 @@ export default class Hex {
   }
 
   leftShape(boundary: ll[], ps: string[]) {
-    const points = boundary.map((pt, i) => {
-      const side = this.ps[i];
-      if (side === 'r') {
-        return { ...pt, ln: pt.ln - 360 };
-      }
-      return pt;
+    const points = boundary.map((pt) => {
+      const { lt, ln } = pt;
+      return {
+        lt,
+        ln: ((ln + 360) % 360) - 360,
+      };
     });
 
     return new Shape(this, points);
   }
 
   rightShape(boundary: ll[], ps: string[]) {
-    const points = boundary.map((pt: ll, i) => {
-      const side = ps[i];
-      if (side === 'l') {
-        return { ...pt, lt: pt.lt + 360 };
-      }
-      return pt;
+    const points = boundary.map((pt: ll) => {
+      const { lt, ln } = pt;
+      return {
+        lt,
+        ln: (ln + 360) % 360,
+      };
     });
 
     return new Shape(this, points);

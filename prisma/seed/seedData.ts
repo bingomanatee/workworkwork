@@ -45,6 +45,7 @@ async function main() {
     });
     const hexData = [...hexes, ...fullHexes].map((c) => new Hex(c).toJSON());
 
+    await prisma.hexes.deleteMany({});
     await prisma.hexes.createMany({
       data: hexData,
       skipDuplicates: true,

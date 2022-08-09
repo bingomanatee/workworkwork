@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import * as dayjs from 'dayjs';
 
 function asInt(value) {
   const i = parseInt(value);
@@ -84,6 +84,7 @@ export const KEYS = [
 export const STAT_KEYS = [
   'id',
   'uid',
+  'iso3',
   'date_published',
   'last_update',
   'confirmed',

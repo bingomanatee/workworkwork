@@ -1,5 +1,4 @@
 // @ts-ignore
-import * as round from 'round-tofixed';
 import { Bounds } from './geometry/Bounds';
 
 export class Point implements ll {
@@ -9,32 +8,8 @@ export class Point implements ll {
     this.ln = ln;
   }
 
-  get ln(): number {
-    const out = round(this._ln, 3) || 0;
-    if (isNaN(out)) {
-      return 0;
-    }
-    return out;
-  }
-
-  set ln(value: number) {
-    this._ln = value;
-  }
-
-  get lt(): number {
-    const out = round(this._lt, 3) || 0;
-    if (isNaN(out)) {
-      return 0;
-    }
-    return out;
-  }
-
-  set lt(value: number) {
-    this._lt = value;
-  }
-
-  private _lt = 0;
-  private _ln = 0;
+  lt = 0;
+  ln = 0;
 
   valueOf() {
     return { lt: this.lt, ln: this.ln };
@@ -104,4 +79,3 @@ export type bounds = {
   east: number;
   west: number;
 };
-

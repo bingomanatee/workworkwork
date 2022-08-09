@@ -60,8 +60,23 @@ model github_data_files {
 model covid_stats {
     id                 Int    @id
     uid                Int
+    iso3               String    @default("")
     date_published     DateTime @db.Date
     last_update        DateTime
+    confirmed          Int?
+    people_tested      Int?
+    incident_rate       Float?
+    testing_rate         Float?
+    hospitalization_rate Float?
+    deaths             Int?
+    recovered          Int?
+    active             Int?
+}
+
+model covid_stats_weekly {
+    id                 String    @id  @default(uuid())
+    iso3               String
+    week      DateTime @db.Date
     confirmed          Int?
     people_tested      Int?
     incident_rate       Float?
@@ -75,7 +90,7 @@ model covid_stats {
 model covid_location {
     uid                Int @id
     iso2               String
-    iso3               String
+    iso3               String    @default("")
     code3              String?
     fips               String?
     admin2             String?

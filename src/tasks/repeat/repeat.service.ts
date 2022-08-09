@@ -62,17 +62,19 @@ export class RepeatService {
   private async checkTypeInterval(type) {
     const { interval } = type;
     const earliestInterval = Date.now() - interval * 1000;
-    const request = {
-      where: {
-        task_type_id: type.id,
-        createdAt: {
-          gt: new Date(earliestInterval),
-        },
-      },
-    };
     const recent = await (async () =>
-      this.prismaService.prisma.task.findMany(request))().catch((err) => {
-      console.log('error on request', request, 'from type', type, err);
+      this.prismaService.prisma.task.findMany({
+        where: {
+          task_type_id: type.id,
+          createdAt: {
+            gt: new Date(earliestInterval),
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      }))().catch((err) => {
+      console.log('error on request from type', type, err);
       throw err;
     });
 
@@ -86,7 +88,12 @@ export class RepeatService {
         );
       })
     ) {
-      console.log('task type', type.name, 'has been run recently -- ignoring');
+      console.log(
+        'task type',
+        type.name,
+        'has been run recently -- ignoring',
+        recent.pop(),
+      );
       return; // interval has been satisfied
     }
 

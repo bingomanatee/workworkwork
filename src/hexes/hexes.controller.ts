@@ -22,7 +22,7 @@ export class HexesController {
 
   @Get('level/:level')
   findAll(@Param('level') level: number) {
-    return this.hexesService.findAll(level);
+    return this.hexesService.findAll(+level);
   }
 
   @Get('hindex/:hindex')

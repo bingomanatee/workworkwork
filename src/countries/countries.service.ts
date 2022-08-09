@@ -2,10 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { CreateCountryDto } from './dto/create-country.dto';
 import { UpdateCountryDto } from './dto/update-country.dto';
 import { PrismaService } from '../prisma.service';
+import { Cron } from '@nestjs/schedule';
+import { StatCounterService } from './stat-counter/stat-counter.service';
 
 @Injectable()
 export class CountriesService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private statCounter: StatCounterService,
+  ) {}
   create(createCountryDto: CreateCountryDto) {
     return 'This action adds a new country';
   }
@@ -35,5 +40,10 @@ export class CountriesService {
 
   remove(id: string) {
     return `This action removes a #${id} country`;
+  }
+
+  @Cron('45 * * * * *')
+  calculateCountryStats() {
+    this.statCounter.calculateCountryStats();
   }
 }

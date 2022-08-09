@@ -119,6 +119,9 @@ export class GithubService {
     const gh = new GitHub(cred);
     try {
       const files = await this.getGithubFiles(task, gh);
+      await this.prismaService.eventForTask(task.id, 'files found', {
+        files,
+      });
       if (Array.isArray(files)) {
         for (let i = 0; i < files.length; ++i) {
           const file = files[i];
@@ -137,6 +140,10 @@ export class GithubService {
         return this.prismaService.finishTask(task);
       } else {
         console.log('--- odd files:', files);
+        await this.prismaService.eventForTask(task.id, 'odd files -- error', {
+          files,
+        });
+        throw new Error('non array files');
       }
     } catch (err) {
       const dm = err.response?.data?.message;
@@ -185,7 +192,7 @@ export class GithubService {
         );
 
       await this.addToQueue(readType, readTask, {});
-    } else if (existing.size < size) {
+    } else if (existing.sha !== sha) {
       const newFile = await this.prismaService.prisma.github_data_files.update({
         where: { path },
         data: {
