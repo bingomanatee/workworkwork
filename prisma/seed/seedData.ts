@@ -6,7 +6,7 @@ import * as fs from 'fs';
 // @ts-ignore
 import * as shp from 'shpjs';
 
-import { getRes0Cells, cellToChildren } from 'h3-js';
+import { getRes0Cells, cellToChildren, cellToLatLng } from 'h3-js';
 const locations = require('./locations.json');
 const types = require('./types.json');
 // @ts-ignore
@@ -38,14 +38,22 @@ async function main() {
     }));
     const fullHexes = [];
     hexes.forEach((hex) => {
-      const childIndexes = cellToChildren(hex.hindex, 2);
-      childIndexes.forEach((hindex) => {
+      const childIndexes2 = cellToChildren(hex.hindex, 2);
+      childIndexes2.forEach((hindex) => {
         fullHexes.push({ hindex, level: 2 });
       });
+      const childIndexes3 = cellToChildren(hex.hindex, 3);
+      childIndexes3.forEach((hindex) => {
+        fullHexes.push({ hindex, level: 3 });
+      });
+      const childIndexes4 = cellToChildren(hex.hindex, 3);
+      childIndexes4.forEach((hindex) => {
+        fullHexes.push({ hindex, level: 4 });
+      });
     });
+
     const hexData = [...hexes, ...fullHexes].map((c) => new Hex(c).toJSON());
 
-    await prisma.hexes.deleteMany({});
     await prisma.hexes.createMany({
       data: hexData,
       skipDuplicates: true,

@@ -78,29 +78,14 @@ export class RepeatService {
       throw err;
     });
 
-    if (
-      recent.length &&
-      recent.some((item) => {
-        return (
-          item.completedAt &&
-          item.completedAt > item.createdAt &&
-          item.status !== 'error'
-        );
-      })
-    ) {
-      console.log(
-        'task type',
-        type.name,
-        'has been run recently -- ignoring',
-        recent.pop(),
-      );
+    if (recent.length) {
       return; // interval has been satisfied
     }
 
     return this.initTask(type);
   }
 
-  @Cron('*/30 * * * * *')
+  //@Cron('*/2 * * * * *')
   private async reanimateDeadTasks() {
     const startedTasks = await this.prismaService.prisma.task.findMany({
       where: {
@@ -111,9 +96,6 @@ export class RepeatService {
         type: true,
       },
     });
-
-    console.log('started tasks:', startedTasks.length);
-
     const firstDead = startedTasks
       .filter((task) => task.type.interval === 0)
       .find((task) => {
@@ -156,8 +138,6 @@ export class RepeatService {
         duplicateTask,
         firstDead.type,
       );
-    } else {
-      console.log('no dead tasks in ', startedTasks.length, 'tasks');
     }
   }
 
@@ -171,6 +151,7 @@ export class RepeatService {
   }
 
   private async initTask(type, initial = false) {
+    return;
     const task = await this.prismaService.prisma.task.create({
       data: {
         task_type_id: type.id,
@@ -191,7 +172,7 @@ export class RepeatService {
     this.taskQueue.add(def);
   }
 
-  @Cron('*/15 * * * * *')
+  // @Cron('*/2 * * * * *')
   async handleCron() {
     await this.runIntervals();
   }

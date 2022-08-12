@@ -11,12 +11,16 @@ import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { CsvService } from './csv/csv.service';
+import { PivotFieldsService } from './pivot-fields/pivot-fields.service';
+import { PrismaService } from '../prisma.service';
 
 @Controller('tasks')
 export class TasksController {
   constructor(
     private readonly tasksService: TasksService,
     private readonly csvService: CsvService,
+    private readonly pivotService: PivotFieldsService,
+    private readonly prismaService: PrismaService,
   ) {}
 
   @Post()
@@ -41,8 +45,9 @@ export class TasksController {
   }
 
   @Get('taskTest')
-  taskTest() {
-    return this.csvService.taskTest();
+  async taskTest() {
+    const { task } = await this.prismaService.makeTask('create pivot records', {});
+    return this.pivotService.createPivotRecords(task);
   }
 
   @Patch(':id')

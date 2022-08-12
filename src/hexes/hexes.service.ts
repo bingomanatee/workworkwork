@@ -16,6 +16,14 @@ export class HexesService {
       where: {
         level,
       },
+      select: {
+        level: true,
+        hindex: true,
+        latitude: true,
+        longitude: true,
+        boundary: true,
+        shapes: true,
+      },
     });
   }
 
@@ -24,21 +32,25 @@ export class HexesService {
   }
 
   async update(hindex: string, updateHexDto: UpdateHexDto) {
-    if (updateHexDto.iso3 && 'strength' in updateHexDto) {
-      await this.prismaService.prisma.country_hex_share.deleteMany({
+    if (updateHexDto.strength && updateHexDto.iso3 && hindex) {
+      return this.prismaService.prisma.country_hex_share.upsert({
         where: {
-          country_iso3: updateHexDto.iso3,
-          hindex,
+          country_iso3_hindex: {
+            country_iso3: updateHexDto.iso3,
+            hindex,
+          },
         },
-      });
-      return this.prismaService.prisma.country_hex_share.create({
-        data: {
-          country_iso3: updateHexDto.iso3,
+        update: {
           strength: updateHexDto.strength,
+        },
+        create: {
+          country_iso3: updateHexDto.iso3,
           hindex,
+          strength: updateHexDto.strength,
         },
       });
     }
+
     return {};
   }
 

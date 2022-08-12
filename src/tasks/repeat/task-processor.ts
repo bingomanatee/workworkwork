@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma.service';
 import { Queue } from 'bull';
 import { GithubService } from '../github/github.service';
 import { CsvService } from '../csv/csv.service';
+import { PivotFieldsService } from '../pivot-fields/pivot-fields.service';
 
 @Processor('tasks')
 export class TaskProcessor {
@@ -14,11 +15,13 @@ export class TaskProcessor {
     private prismaService: PrismaService,
     private github: GithubService,
     private csv: CsvService,
+    private pivotField: PivotFieldsService,
   ) {}
 
   @Process()
   async handleTask(job: Job) {
     const { task_id, type_id } = job.data;
+    return;
 
     const [type, task] = await Promise.all([
       this.prismaService.prisma.task_type.findUniqueOrThrow({
@@ -33,29 +36,36 @@ export class TaskProcessor {
       }),
     ]);
 
-    switch (type?.name) {
-      case 'update data':
-        await this.github.createPollTask(task);
-        break;
+    try {
+      switch (type?.name) {
+        case 'process csv data':
+          await this.csv.readDataFiles(task, type);
+          break;
 
-      case 'poll github':
-        await this.github.pollGithub(task);
-        break;
+        case 'csv rows to country data':
+          await this.csv.saveRows([]);
+          break;
 
-      case 'process github file':
-        await this.github.processFile(task);
-        break;
+        case 'create pivot records':
+          await this.pivotField.createPivotRecords(task);
+          break;
 
-      case 'read csv snapshot':
-        await this.github.readCsvSnapshot(task);
-        break;
+        case 'pivot field':
+          await this.pivotField.pivotField(task);
+          break;
 
-      case 'write csv records':
-        await this.csv.writeCsvRecords(task);
-        break;
+        case 'pivot field iso':
+        //  await this.pivotField.pivotFieldIso(task);
+          break;
 
-      default:
-        console.log('--- no handler for ', type?.name);
+        default:
+          console.log('--- no handler for ', type?.name);
+      }
+    } catch (err) {
+      await this.prismaService.eventForTask(task.id, 'untrapped task error', {
+        message: err.message,
+      });
+      await this.prismaService.finishTask(task, 'error');
     }
   }
 }

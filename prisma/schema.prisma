@@ -139,4 +139,68 @@ model country_hex_share {
     hindex           String
     hex              hexes         @relation(fields: [hindex], references: [hindex])
     strength         Float
+    @@unique([country_iso3, hindex])
+}
+
+model covid_data_pivot {
+    id          String  @id @default(uuid())
+    iso_alpha_3   String
+    field   String
+	date	    DateTime @db.Date
+	increment Int @default(1)
+	type    String
+	values_int  Int[]
+	values_float Int[]
+    @@unique([iso_alpha_3, field])
+}
+
+model covid_data_denormalized {
+    id          String?
+	date	    DateTime @db.Date
+    confirmed	Int?
+    deaths	    Int?
+    recovered   Int?
+    tests	    Int?
+    vaccines	Int?
+    people_vaccinated	Int?
+    people_fully_vaccinated Int?
+    hosp        Int?
+    icu         Int?
+    vent        Int?
+    school_closing  Int?
+    workplace_closing   Int?
+    cancel_events	Int?
+    gatherings_restrictions	Int?
+    transport_closing	Int?
+    stay_home_restrictions	Int?
+    internal_movement_restrictions	Int?
+    international_movement_restrictions	Int?
+    information_campaigns   Int?
+    testing_policy	Int?
+    contact_tracing	Int?
+    facial_coverings	Int?
+    vaccination_policy	Int?
+    elderly_people_protection	Int?
+    government_response_index	Float?
+    stringency_index	Float?
+    containment_health_index	Float?
+    economic_support_index	Float?
+    administrative_area_level   Int?
+    administrative_area_level_1  String?
+    administrative_area_level_2	 String?
+    administrative_area_level_3  String?
+    latitude	Float?
+    longitude   Float?
+    population	Int?
+    iso_alpha_3 String @db.VarChar(3)
+    iso_alpha_2 String? @db.VarChar(2)
+    iso_numeric	Int?
+    iso_currency String? @db.VarChar(3)
+    key_local	String?
+    key_google_mobility	String?
+    key_apple_mobility	String?
+    key_jhu_csse	 String? @db.VarChar(3)
+    key_nuts	 String? @db.VarChar(3)
+    key_gadm     String? @db.VarChar(3)
+    @@unique([date, iso_alpha_3])
 }

@@ -19,6 +19,12 @@ export class CountriesService {
     return this.prismaService.prisma.countries.findMany({
       include: {
         shapes: true,
+        hex_shares: {
+          select: {
+            hindex: true,
+            strength: true,
+          },
+        },
       },
     });
   }
@@ -41,9 +47,9 @@ export class CountriesService {
   remove(id: string) {
     return `This action removes a #${id} country`;
   }
-
+  /*
   @Cron('45 * * * * *')
   calculateCountryStats() {
     this.statCounter.calculateCountryStats();
-  }
+  }*/
 }

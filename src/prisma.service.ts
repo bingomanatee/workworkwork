@@ -43,13 +43,7 @@ export class PrismaService implements OnModuleInit {
   }
 
   async makeTask(typeName, data, parent_task_id = null) {
-    const type = await this.prisma.task_type
-      .findFirstOrThrow({
-        where: {
-          name: typeName,
-        },
-      })
-      .catch(this.checkErrorForReboot);
+    const type = await this.typeByName(typeName);
 
     if (!type) {
       throw new Error(`cannot find type for ${typeName}`);
@@ -58,8 +52,8 @@ export class PrismaService implements OnModuleInit {
     const task = await this.prisma.task
       .create({
         data: {
-          task_type_id: type.id,
           data,
+          task_type_id: type.id,
           parent_task_id,
         },
       })
@@ -68,8 +62,12 @@ export class PrismaService implements OnModuleInit {
     return { type, task };
   }
 
-  async finishTask(task, status = 'done') {
-    await this.prisma.task
+  finishTask(task, status = 'done') {
+    if (!(task && task.id)) {
+      console.log('bad task:', task);
+      throw new Error('bad task for finishTask');
+    }
+    return this.prisma.task
       .update({
         where: {
           id: task.id,
@@ -151,5 +149,13 @@ export class PrismaService implements OnModuleInit {
         console.log('---- error code: ', err.code);
         return this.checkErrorForReboot(err);
       });
+  }
+
+  async typeByName(name: string) {
+    return this.prisma.task_type.findUniqueOrThrow({
+      where: {
+        name,
+      },
+    });
   }
 }

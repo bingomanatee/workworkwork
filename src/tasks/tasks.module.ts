@@ -7,6 +7,7 @@ import { BullModule } from '@nestjs/bull';
 import { TaskProcessor } from './repeat/task-processor';
 import { GithubService } from './github/github.service';
 import { CsvService } from './csv/csv.service';
+import { PivotFieldsService } from './pivot-fields/pivot-fields.service';
 @Module({
   controllers: [TasksController],
   providers: [
@@ -16,6 +17,7 @@ import { CsvService } from './csv/csv.service';
     TaskProcessor,
     GithubService,
     CsvService,
+    PivotFieldsService,
   ],
   imports: [
     BullModule.registerQueue({

@@ -4,6 +4,7 @@ import { UpdateCovidCaseDto } from './dto/update-covid-case.dto';
 import { PrismaService } from '../prisma.service';
 import * as dayjs from 'dayjs';
 import * as _ from 'lodash';
+import { Dayjs } from 'dayjs';
 
 @Injectable()
 export class CovidCasesService {
