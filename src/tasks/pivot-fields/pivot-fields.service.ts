@@ -156,22 +156,6 @@ export class PivotFieldsService {
     await this.prismaService.finishTask(task);
   }
 
-  private async getPivotFieldIsoData(date, iso_alpha_3) {
-    return await this.prismaService.prisma.covid_data_denormalized.findMany({
-      select: {
-        date: true,
-        deaths: true,
-        hosp: true,
-        icu: true,
-        vent: true,
-      },
-      where: {
-        iso_alpha_3,
-      },
-      orderBy: [{ date: 'asc' }],
-    });
-  }
-
   async createPivotRecords(task) {
     const pivotFieldType = await this.prismaService.typeByName('pivot field');
     [

@@ -11,6 +11,7 @@ import { CovidCasesModule } from './covid-cases/covid-cases.module';
 import { LocationsModule } from './locations/locations.module';
 import { HexesModule } from './hexes/hexes.module';
 import { CountriesModule } from './countries/countries.module';
+import { PivotSummaryModule } from './pivot-summary/pivot-summary.module';
 
 /*
 const REDIS = {
@@ -36,6 +37,7 @@ console.log('redis def:', REDIS);
     LocationsModule,
     HexesModule,
     CountriesModule,
+    PivotSummaryModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

@@ -19,19 +19,19 @@ async function main() {
    const types = await prisma.task_type.findMany({});
    console.log('task types:', types)
    fs.writeFileSync(__dirname + '/types.json', JSON.stringify(types));
-*/
+
     await prisma.task_type.createMany({
       data: types,
       skipDuplicates: true,
     });
     console.log('saved task types');
-
-    await prisma.covid_location.createMany({
+  */
+    /* await prisma.covid_location.createMany({
       data: locations,
       skipDuplicates: true,
     });
     console.log('saved locations');
-
+*/
     const hexes = getRes0Cells().map((hindex) => ({
       hindex,
       level: 0,
@@ -45,10 +45,6 @@ async function main() {
       const childIndexes3 = cellToChildren(hex.hindex, 3);
       childIndexes3.forEach((hindex) => {
         fullHexes.push({ hindex, level: 3 });
-      });
-      const childIndexes4 = cellToChildren(hex.hindex, 3);
-      childIndexes4.forEach((hindex) => {
-        fullHexes.push({ hindex, level: 4 });
       });
     });
 
@@ -75,6 +71,13 @@ async function main() {
           shapes.push(shape);
         });
       });
+      for (const country of countries) {
+        prisma.countries.upsert({
+          where: { iso3: country.iso3 },
+          create: country,
+          update: country,
+        });
+      }
       const chunks = _.chunk(countries, 10);
       for (const chunk of chunks) {
         try {

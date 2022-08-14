@@ -1,7 +1,19 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Response,
+  Res,
+} from '@nestjs/common';
 import { CountriesService } from './countries.service';
 import { CreateCountryDto } from './dto/create-country.dto';
 import { UpdateCountryDto } from './dto/update-country.dto';
+import { createReadStream } from 'fs';
+import { join } from 'path';
 
 @Controller('countries')
 export class CountriesController {
@@ -17,8 +29,23 @@ export class CountriesController {
     return this.countriesService.findAll();
   }
 
+  @Get('geojson')
+  getFile(@Res() res: Response) {
+    const file = createReadStream(
+      join(
+        __dirname,
+        '../../../src/countries/ne_110m_admin_0_countries.geojson.json',
+      ),
+    );
+    // @ts-ignore
+    file.pipe(res);
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @Res() res: Response) {
+    if (id === 'geojason') {
+      return this.getFile(res);
+    }
     return this.countriesService.findOne(id);
   }
 

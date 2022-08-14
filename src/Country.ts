@@ -35,6 +35,7 @@ type countryPropObj = {
   ISO3: string;
   LAT: number;
   LON: number;
+  POP2005: number;
 };
 
 type geom = {
@@ -44,6 +45,7 @@ type geom = {
 export default class Country {
   latitude: number;
   longitude: number;
+  population: number;
   constructor(prop: countryPropObj, geometry: geom) {
     this.prop = prop;
     this.name = prop.NAME;
@@ -51,6 +53,7 @@ export default class Country {
     this.iso3 = prop.ISO3;
     this.latitude = prop.LAT;
     this.longitude = prop.LON;
+    this.population = prop.POP2005 || 0;
     this.geometry = geometry.coordinates;
   }
 
@@ -62,6 +65,7 @@ export default class Country {
       iso3: this.iso3,
       latitude: this.latitude,
       longitude: this.longitude,
+      population: this.population,
       boundary: [boundary.northWest.toJSON(), boundary.southEast.toJSON()],
     };
   }

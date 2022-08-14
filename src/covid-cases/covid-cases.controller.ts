@@ -14,7 +14,7 @@ export class CovidCasesController {
 
   @Get()
   findAll() {
-    return this.covidCasesService.findAll();
+  //  return this.covidCasesService.findAll();
   }
 
   @Get(':id')
