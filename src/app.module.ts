@@ -13,16 +13,10 @@ import { HexesModule } from './hexes/hexes.module';
 import { CountriesModule } from './countries/countries.module';
 import { PivotSummaryModule } from './pivot-summary/pivot-summary.module';
 
-/*
-const REDIS = {
-  host: process.env.REDIS_ENDPOINT,
-  port: process.env.REDIS_PORT,
-  password: process.env.REDIS_PASSWORD,
-};
- */
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 const REDIS = { host: 'localhost', port: 6379 };
-console.log('redis def:', REDIS);
 
 @Module({
   imports: [
@@ -38,8 +32,13 @@ console.log('redis def:', REDIS);
     HexesModule,
     CountriesModule,
     PivotSummaryModule,
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '../../', 'client'),
+    }),
   ],
-  controllers: [AppController],
+  controllers: [
+   // AppController
+  ],
   providers: [AppService, PrismaService],
 })
 export class AppModule {}

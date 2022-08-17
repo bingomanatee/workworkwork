@@ -14,7 +14,7 @@ import { CsvService } from './csv/csv.service';
 import { PivotFieldsService } from './pivot-fields/pivot-fields.service';
 import { PrismaService } from '../prisma.service';
 
-@Controller('tasks')
+@Controller('api/tasks')
 export class TasksController {
   constructor(
     private readonly tasksService: TasksService,

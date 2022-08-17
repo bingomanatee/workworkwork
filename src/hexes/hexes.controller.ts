@@ -11,7 +11,7 @@ import { HexesService } from './hexes.service';
 import { CreateHexDto } from './dto/create-hex.dto';
 import { UpdateHexDto } from './dto/update-hex.dto';
 
-@Controller('hexes')
+@Controller('api/hexes')
 export class HexesController {
   constructor(private readonly hexesService: HexesService) {}
 

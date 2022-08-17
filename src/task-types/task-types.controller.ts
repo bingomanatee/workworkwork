@@ -12,7 +12,7 @@ import { TaskTypesService } from './task-types.service';
 import { CreateTaskTypeDto } from './dto/create-task-type.dto';
 import { UpdateTaskTypeDto } from './dto/update-task-type.dto';
 
-@Controller('task-types')
+@Controller('api/task-types')
 export class TaskTypesController {
   constructor(private readonly taskTypesService: TaskTypesService) {}
 

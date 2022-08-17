@@ -3,7 +3,7 @@ import { CovidCasesService } from './covid-cases.service';
 import { CreateCovidCaseDto } from './dto/create-covid-case.dto';
 import { UpdateCovidCaseDto } from './dto/update-covid-case.dto';
 
-@Controller('covid-cases')
+@Controller('api/covid-cases')
 export class CovidCasesController {
   constructor(private readonly covidCasesService: CovidCasesService) {}
 

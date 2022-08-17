@@ -15,7 +15,7 @@ import { UpdateCountryDto } from './dto/update-country.dto';
 import { createReadStream } from 'fs';
 import { join } from 'path';
 
-@Controller('countries')
+@Controller('api/countries')
 export class CountriesController {
   constructor(private readonly countriesService: CountriesService) {}
 

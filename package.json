@@ -30,6 +30,7 @@
     "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^8.0.0",
     "@nestjs/schedule": "^2.1.0",
+    "@nestjs/serve-static": "^3.0.0",
     "@octokit/rest": "^19.0.3",
     "@prisma/client": "^4.1.0",
     "@wonderlandlabs/collect": "^0.1.18",
