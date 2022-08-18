@@ -49,15 +49,13 @@ export class PrismaService implements OnModuleInit {
       throw new Error(`cannot find type for ${typeName}`);
     }
 
-    const task = await this.prisma.task
-      .create({
-        data: {
-          data,
-          task_type_id: type.id,
-          parent_task_id,
-        },
-      })
-      .catch(this.checkErrorForReboot);
+    const task = await this.prisma.task.create({
+      data: {
+        data,
+        task_type_id: type.id,
+        parent_task_id,
+      },
+    });
 
     return { type, task };
   }
@@ -122,33 +120,56 @@ export class PrismaService implements OnModuleInit {
     throw err;
   }
 
-  eventForTask(id, event: string, data = {}) {
-    if (data !== null) {
-      try {
-        const jsonString = JSON.stringify(data);
-      } catch (err) {
+  eventQueue = [];
+  writingEvent = false;
+
+  clearEventQueue() {
+    if (!this.eventQueue.length) {
+      return;
+    }
+    const { id, event, data } = this.eventQueue.shift();
+    return this.eventForTask(id, event, data);
+  }
+  async eventForTask(id, event: string, data = {}) {
+    if (this.writingEvent) {
+      this.eventQueue.push({ id, event, data });
+      process.nextTick(() => this.clearEventQueue());
+      return;
+    }
+    this.writingEvent = true;
+    try {
+      if (data !== null) {
+        try {
+          const jsonString = JSON.stringify(data);
+        } catch (err) {
+          data = {};
+        }
+      } else {
         data = {};
       }
-    } else {
-      data = {};
+
+      const createData = {
+        task_id: id,
+        event,
+        data,
+      };
+
+      await this.prisma.task_event
+        .create({
+          data: createData,
+        })
+        .then(NOOP)
+        .catch((err) => {
+          console.log('data:', createData, 'task event error:', err);
+          console.log('---- error code: ', err.code);
+        });
+    } catch (err) {
+      console.log('error in task_event: ', err.message);
     }
-
-    const createData = {
-      task_id: id,
-      event,
-      data,
-    };
-
-    this.prisma.task_event
-      .create({
-        data: createData,
-      })
-      .then(NOOP)
-      .catch((err) => {
-        console.log('data:', createData, 'task event error:', err);
-        console.log('---- error code: ', err.code);
-        return this.checkErrorForReboot(err);
-      });
+    this.writingEvent = false;
+    if (this.eventQueue.length) {
+      process.nextTick(() => this.clearEventQueue());
+    }
   }
 
   async typeByName(name: string) {

@@ -3,7 +3,6 @@ import { Job } from 'bull';
 import { TasksService } from '../tasks.service';
 import { PrismaService } from '../../prisma.service';
 import { Queue } from 'bull';
-import { GithubService } from '../github/github.service';
 import { CsvService } from '../csv/csv.service';
 import { PivotFieldsService } from '../pivot-fields/pivot-fields.service';
 
@@ -13,16 +12,14 @@ export class TaskProcessor {
     private readonly tasksService: TasksService,
     @InjectQueue('tasks') private taskQueue: Queue,
     private prismaService: PrismaService,
-    private github: GithubService,
     private csv: CsvService,
     private pivotField: PivotFieldsService,
   ) {}
 
   @Process()
   async handleTask(job: Job) {
+    console.log('handling task', job.data);
     const { task_id, type_id } = job.data;
-    return;
-
     const [type, task] = await Promise.all([
       this.prismaService.prisma.task_type.findUniqueOrThrow({
         where: {
@@ -38,12 +35,12 @@ export class TaskProcessor {
 
     try {
       switch (type?.name) {
-        case 'process csv data':
-          await this.csv.readDataFiles(task, type);
+        case 'update csv data':
+          await this.csv.fetchDataFiles(task);
           break;
 
-        case 'csv rows to country data':
-          await this.csv.saveRows([]);
+        case 'write csv records':
+          await this.csv.readDataFiles(task, type);
           break;
 
         case 'create pivot records':
@@ -55,7 +52,7 @@ export class TaskProcessor {
           break;
 
         case 'pivot field iso':
-        //  await this.pivotField.pivotFieldIso(task);
+          //  await this.pivotField.pivotFieldIso(task);
           break;
 
         default:

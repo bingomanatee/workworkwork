@@ -92,10 +92,6 @@ export class PivotFieldsService {
         }
       });
 
-      console.log('iso:', iso3);
-      console.log('dates:', dates.slice(0, 10));
-      console.log('values:', values.slice(0, 10));
-
       const record = {
         field,
         iso_alpha_3: iso3,
@@ -103,8 +99,6 @@ export class PivotFieldsService {
         date: first.date,
         [type === 'int' ? 'values_int' : 'values_float']: values,
       };
-
-      console.log('data for', iso3, record);
 
       data.push(record);
       return data;

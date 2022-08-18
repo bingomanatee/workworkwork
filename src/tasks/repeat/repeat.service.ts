@@ -14,33 +14,8 @@ export class RepeatService {
     @InjectQueue('tasks') private taskQueue: Queue,
   ) {}
 
-  // @Cron('0 */30 * * * *')
-  initialCron() {
-    this.prismaService.prisma.task_type
-      .findMany({
-        where: {
-          interval: {
-            gt: 0,
-          },
-        },
-      })
-      .then((types) => {
-        return Promise.all(
-          types.map(async (type) => {
-            const { id } = type;
-            if (this.startTaskIds.includes(id)) {
-              return;
-            }
-            this.startTaskIds.push(id);
-
-            console.log('running initial task', type.name);
-            return this.initTask(type, true);
-          }),
-        );
-      });
-  }
-
-  async runIntervals() {
+  @Cron('*/3 * * * *')
+  async runRepeatingTasks() {
     const request = {
       where: {
         interval: {
@@ -60,6 +35,7 @@ export class RepeatService {
   }
 
   private async checkTypeInterval(type) {
+    console.log('interval check for ', type.name);
     const { interval } = type;
     const earliestInterval = Date.now() - interval * 1000;
     const recent = await (async () =>
@@ -79,13 +55,20 @@ export class RepeatService {
     });
 
     if (recent.length) {
+      console.log(
+        type.name,
+        ' -- within time frame for ',
+        recent.length,
+        'runs',
+      );
       return; // interval has been satisfied
     }
 
     return this.initTask(type);
   }
+  /*
 
-  //@Cron('*/2 * * * * *')
+  //@Cron('*!/2 * * * * *')
   private async reanimateDeadTasks() {
     const startedTasks = await this.prismaService.prisma.task.findMany({
       where: {
@@ -140,6 +123,7 @@ export class RepeatService {
       );
     }
   }
+*/
 
   private async addToQueue(type, task, data = {}) {
     this.taskQueue.add({
@@ -151,7 +135,6 @@ export class RepeatService {
   }
 
   private async initTask(type, initial = false) {
-    return;
     const task = await this.prismaService.prisma.task.create({
       data: {
         task_type_id: type.id,
@@ -170,11 +153,6 @@ export class RepeatService {
     console.log('====== running task ', type.name, def);
 
     this.taskQueue.add(def);
-  }
-
-  // @Cron('*/2 * * * * *')
-  async handleCron() {
-    await this.runIntervals();
   }
 
   startTaskIds: any[] = [];

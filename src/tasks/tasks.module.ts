@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma.service';
 import { RepeatService } from './repeat/repeat.service';
 import { BullModule } from '@nestjs/bull';
 import { TaskProcessor } from './repeat/task-processor';
-import { GithubService } from './github/github.service';
 import { CsvService } from './csv/csv.service';
 import { PivotFieldsService } from './pivot-fields/pivot-fields.service';
 @Module({
@@ -15,7 +14,6 @@ import { PivotFieldsService } from './pivot-fields/pivot-fields.service';
     PrismaService,
     RepeatService,
     TaskProcessor,
-    GithubService,
     CsvService,
     PivotFieldsService,
   ],
