@@ -72,31 +72,20 @@ export class TasksService {
     });
   }
 
-  async repeatTask(id: string) {
-    const task = await this.prismaService.prisma.task.findUniqueOrThrow({
+  async repeatTask(typeId: string, data) {
+    const type = await this.prismaService.prisma.task_type.findUniqueOrThrow({
       where: {
-        id,
-      },
-      include: {
-        type: true,
+        id: typeId,
       },
     });
 
-    const { data, parent_task_id, task_type_id } = task;
-    const duplicateTask = await this.prismaService.prisma.task.create({
-      data: {
-        data,
-        parent_task_id,
-        task_type_id,
-      },
-    });
+    const { task } = await this.prismaService.makeTask(type.name, data);
 
-    this.addToQueue(task.type, duplicateTask);
-    console.log('--- repeat queueing ', duplicateTask, task.type)
-    return duplicateTask;
+    this.addToQueue(type, task, data);
+    return task;
   }
 
-  private async addToQueue(type, task, data = {}) {
+  private addToQueue(type, task, data = {}) {
     this.taskQueue.add({
       ...data,
       type: type.name,
@@ -105,7 +94,5 @@ export class TasksService {
     });
   }
 
-  taskTest() {
-
-  }
+  taskTest() {}
 }

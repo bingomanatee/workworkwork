@@ -15,6 +15,7 @@ import { PivotSummaryModule } from './pivot-summary/pivot-summary.module';
 
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { QueuesModule } from './queues/queues.module';
 
 const REDIS = { host: 'localhost', port: 6379 };
 
@@ -35,6 +36,7 @@ const REDIS = { host: 'localhost', port: 6379 };
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '../../', 'client'),
     }),
+    QueuesModule,
   ],
   controllers: [
    // AppController

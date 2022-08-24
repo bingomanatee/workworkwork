@@ -14,7 +14,7 @@ export class RepeatService {
     @InjectQueue('tasks') private taskQueue: Queue,
   ) {}
 
-  @Cron('*/3 * * * *')
+  @Cron('*/10 * * * * *')
   async runRepeatingTasks() {
     const request = {
       where: {
@@ -113,7 +113,7 @@ export class RepeatService {
         },
       });
 
-      this.addToQueue(firstDead.type, duplicateTask);
+      this.addTaskToQueue(firstDead.type, duplicateTask);
       console.log(
         '--- reanimating ',
         firstDead.id,
@@ -125,14 +125,6 @@ export class RepeatService {
   }
 */
 
-  private async addToQueue(type, task, data = {}) {
-    this.taskQueue.add({
-      ...data,
-      type: type.name,
-      type_id: type.id,
-      task_id: task.id,
-    });
-  }
 
   private async initTask(type, initial = false) {
     const task = await this.prismaService.prisma.task.create({

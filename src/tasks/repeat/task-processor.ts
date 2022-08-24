@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma.service';
 import { Queue } from 'bull';
 import { CsvService } from '../csv/csv.service';
 import { PivotFieldsService } from '../pivot-fields/pivot-fields.service';
+import { StatesService } from '../states/states.service';
 
 @Processor('tasks')
 export class TaskProcessor {
@@ -14,6 +15,7 @@ export class TaskProcessor {
     private prismaService: PrismaService,
     private csv: CsvService,
     private pivotField: PivotFieldsService,
+    private stateService: StatesService,
   ) {}
 
   @Process()
@@ -35,16 +37,23 @@ export class TaskProcessor {
 
     try {
       switch (type?.name) {
-        case 'update csv data':
-          await this.csv.fetchDataFiles(task);
+        case 'update state csv data':
+          await this.csv.fetchStateSsvData(task);
+          break;
+
+        case 'update country csv data':
+          await this.csv.fetchCountryCsvData(task);
           break;
 
         case 'write csv records':
-          await this.csv.readDataFiles(task, type);
+          await this.csv.writeCsvRecords(task, type);
           break;
 
         case 'create pivot records':
           await this.pivotField.createPivotRecords(task);
+          break;
+        case 'create state pivot records':
+          await this.stateService.createStatePivotRecords(task);
           break;
 
         case 'pivot field':
@@ -53,6 +62,10 @@ export class TaskProcessor {
 
         case 'pivot field iso':
           //  await this.pivotField.pivotFieldIso(task);
+          break;
+
+        case 'localize states to hexes':
+          await this.stateService.localizeStates(task);
           break;
 
         default:

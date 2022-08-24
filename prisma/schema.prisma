@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,195 +9,269 @@ datasource db {
 }
 
 model task_type {
-  id          String  @id @default(uuid())
-  name        String     @unique
-  tasks       task[]
+  id          String      @id @default(uuid())
+  name        String      @unique
   notes       String?
   order       Int         @default(0)
   parent_id   String?
-  parent      task_type?  @relation(name: "parent", fields: [parent_id], references: [id])
-  child_tasks task_type[] @relation(name: "parent")
   deleted     Boolean     @default(false)
   interval    Int         @default(0)
+  parent      task_type?  @relation("parent", fields: [parent_id], references: [id])
+  tasks       task[]
+  child_tasks task_type[] @relation("parent")
 }
 
 model task {
-  id           String       @id @default(uuid())
-  type         task_type    @relation(fields: [task_type_id], references: [id])
-  task_type_id String
-  task_events  task_event[]
-  notes        String?
-  data         Json?
-  createdAt    DateTime    @default(now())
-  last_work_done  DateTime?
-  completedAt  DateTime?
-  status       String      @default("started")
-  parent_task  task?       @relation(name: "parent", fields: [parent_task_id], references: [id])
+  id             String       @id @default(uuid())
+  task_type_id   String
+  notes          String?
+  data           Json?
+  createdAt      DateTime     @default(now())
+  completedAt    DateTime?
+  status         String       @default("started")
   parent_task_id String?
-  child_tasks  task[]      @relation(name: "parent")
+  last_work_done DateTime?
+  parent_task    task?        @relation("parent", fields: [parent_task_id], references: [id])
+  type           task_type    @relation(fields: [task_type_id], references: [id])
+  child_tasks    task[]       @relation("parent")
+  task_events    task_event[]
 }
 
 model task_event {
   id        String   @id @default(uuid())
-  task      task     @relation(fields: [task_id], references: [id])
   task_id   String
   event     String
   data      Json?
   createdAt DateTime @default(now())
+  task      task     @relation(fields: [task_id], references: [id])
 }
 
 model github_data_files {
-      path         String @id
-      sha          String
-      size         Int
-      createdAt    DateTime @default(now())
-      status       String   @default("created")
+  path      String   @id
+  sha       String
+  size      Int
+  createdAt DateTime @default(now())
+  status    String   @default("created")
 }
 
 model covid_stats {
-    id                 Int    @id
-    uid                Int
-    iso3               String    @default("")
-    date_published     DateTime @db.Date
-    last_update        DateTime
-    confirmed          Int?
-    people_tested      Int?
-    incident_rate       Float?
-    testing_rate         Float?
-    hospitalization_rate Float?
-    deaths             Int?
-    recovered          Int?
-    active             Int?
+  id                   Int      @id
+  uid                  Int
+  date_published       DateTime @db.Date
+  last_update          DateTime
+  confirmed            Int?
+  people_tested        Int?
+  incident_rate        Float?
+  testing_rate         Float?
+  hospitalization_rate Float?
+  deaths               Int?
+  recovered            Int?
+  active               Int?
+  iso3                 String   @default("")
 }
 
 model covid_stats_weekly {
-    id                 String    @id  @default(uuid())
-    iso3               String
-    week      DateTime @db.Date
-    confirmed          Int?
-    people_tested      Int?
-    incident_rate       Float?
-    testing_rate         Float?
-    hospitalization_rate Float?
-    deaths             Int?
-    recovered          Int?
-    active             Int?
+  id                   String   @id @default(uuid())
+  iso3                 String
+  week                 DateTime @db.Date
+  confirmed            Int?
+  people_tested        Int?
+  incident_rate        Float?
+  testing_rate         Float?
+  hospitalization_rate Float?
+  deaths               Int?
+  recovered            Int?
+  active               Int?
 }
 
 model covid_location {
-    uid                Int @id
-    iso2               String
-    iso3               String    @default("")
-    code3              String?
-    fips               String?
-    admin2             String?
-    province_state     String?
-    country_region     String
-    latitude           Float?
-    longitude          Float?
-    population         Int?
+  uid            Int     @id
+  iso2           String
+  iso3           String  @default("")
+  code3          String?
+  fips           String?
+  admin2         String?
+  province_state String?
+  country_region String
+  latitude       Float?
+  longitude      Float?
+  population     Int?
 }
 
 model hexes {
-    hindex            String @id
-    level             Int
-    boundary          Json[]
-    latitude          Float
-    longitude         Float
-    shapes            Json[]
-    hex_shares        country_hex_share[]
+  level      Int
+  boundary   Json[]
+  latitude   Float
+  longitude  Float
+  shapes     Json[]
+  hindex     String              @id
+  hex_shares country_hex_share[]
 }
 
 model countries {
-    iso2              String
-    iso3              String @id
-    name              String
-    population        Int?
-    latitude          Float
-    longitude         Float
-    boundary          Json[]
-    shapes            country_shape[]
-    hex_shares        country_hex_share[]
+  iso2       String
+  iso3       String              @id
+  name       String
+  population Int?
+  latitude   Float
+  longitude  Float
+  boundary   Json[]
+  hex_shares country_hex_share[]
+  shapes     country_shape[]
 }
 
 model country_shape {
-    id               Int @id  @default(autoincrement())
-    index            Int
-    boundary         Json
-    points           Json
-    country          countries     @relation(fields: [country_iso3], references: [iso3])
-    country_iso3     String
+  id           Int       @id @default(autoincrement())
+  index        Int
+  country_iso3 String
+  points       Json
+  boundary     Json
+  country      countries @relation(fields: [country_iso3], references: [iso3])
 }
 
 model country_hex_share {
-    id               Int @id        @default(autoincrement())
-    country          countries      @relation(fields: [country_iso3], references: [iso3])
-    country_iso3     String
-    hindex           String
-    hex              hexes         @relation(fields: [hindex], references: [hindex])
-    strength         Float
-    @@unique([country_iso3, hindex])
+  id           Int       @id @default(autoincrement())
+  country_iso3 String
+  strength     Float
+  hindex       String
+  country      countries @relation(fields: [country_iso3], references: [iso3])
+  hex          hexes     @relation(fields: [hindex], references: [hindex])
+
+  @@unique([country_iso3, hindex])
 }
 
 model covid_data_pivot {
-    id          String  @id @default(uuid())
-    iso_alpha_3   String
-    field   String
-	date	    DateTime @db.Date
-	increment Int @default(1)
-	type    String
-	values_int  Int[]
-	values_float Int[]
-    @@unique([iso_alpha_3, field])
+  iso_alpha_3  String
+  field        String
+  date         DateTime @db.Date
+  increment    Int      @default(1)
+  type         String
+  values_int   Int[]
+  values_float Int[]
+  id           String   @id @default(uuid())
+
+  @@unique([iso_alpha_3, field])
+}
+
+model covid_hex_pivot {
+  id           String   @id @default(uuid())
+  hindex       String
+  field        String
+  date         DateTime @db.Date
+  increment    Int      @default(1)
+  type         String
+  state_ids    String[]
+  values_int   Int[]
+  values_float Int[]
+
+  @@unique([hindex, field])
 }
 
 model covid_data_denormalized {
-    id          String?
-	date	    DateTime @db.Date
-    confirmed	Int?
-    deaths	    Int?
-    recovered   Int?
-    tests	    Int?
-    vaccines	Int?
-    people_vaccinated	Int?
-    people_fully_vaccinated Int?
-    hosp        Int?
-    icu         Int?
-    vent        Int?
-    school_closing  Int?
-    workplace_closing   Int?
-    cancel_events	Int?
-    gatherings_restrictions	Int?
-    transport_closing	Int?
-    stay_home_restrictions	Int?
-    internal_movement_restrictions	Int?
-    international_movement_restrictions	Int?
-    information_campaigns   Int?
-    testing_policy	Int?
-    contact_tracing	Int?
-    facial_coverings	Int?
-    vaccination_policy	Int?
-    elderly_people_protection	Int?
-    government_response_index	Float?
-    stringency_index	Float?
-    containment_health_index	Float?
-    economic_support_index	Float?
-    administrative_area_level   Int?
-    administrative_area_level_1  String?
-    administrative_area_level_2	 String?
-    administrative_area_level_3  String?
-    latitude	Float?
-    longitude   Float?
-    population	Int?
-    iso_alpha_3 String @db.VarChar(3)
-    iso_alpha_2 String? @db.VarChar(2)
-    iso_numeric	Int?
-    iso_currency String? @db.VarChar(3)
-    key_local	String?
-    key_google_mobility	String?
-    key_apple_mobility	String?
-    key_jhu_csse	 String? @db.VarChar(3)
-    key_nuts	 String? @db.VarChar(3)
-    key_gadm     String? @db.VarChar(3)
-    @@unique([date, iso_alpha_3])
+  id                                  String?
+  date                                DateTime @db.Date
+  confirmed                           Int?
+  deaths                              Int?
+  recovered                           Int?
+  tests                               Int?
+  vaccines                            Int?
+  people_vaccinated                   Int?
+  people_fully_vaccinated             Int?
+  hosp                                Int?
+  icu                                 Int?
+  vent                                Int?
+  school_closing                      Int?
+  workplace_closing                   Int?
+  cancel_events                       Int?
+  gatherings_restrictions             Int?
+  transport_closing                   Int?
+  stay_home_restrictions              Int?
+  internal_movement_restrictions      Int?
+  international_movement_restrictions Int?
+  information_campaigns               Int?
+  testing_policy                      Int?
+  contact_tracing                     Int?
+  facial_coverings                    Int?
+  vaccination_policy                  Int?
+  elderly_people_protection           Int?
+  government_response_index           Float?
+  stringency_index                    Float?
+  containment_health_index            Float?
+  economic_support_index              Float?
+  administrative_area_level           Int?
+  administrative_area_level_1         String?
+  administrative_area_level_2         String?
+  administrative_area_level_3         String?
+  latitude                            Float?
+  longitude                           Float?
+  population                          Int?
+  iso_alpha_3                         String   @db.VarChar(3)
+  iso_alpha_2                         String?  @db.VarChar(2)
+  iso_numeric                         Int?
+  iso_currency                        String?  @db.VarChar(3)
+  key_local                           String?
+  key_google_mobility                 String?
+  key_apple_mobility                  String?
+  key_jhu_csse                        String?  @db.VarChar(3)
+  key_nuts                            String?  @db.VarChar(3)
+  key_gadm                            String?  @db.VarChar(3)
+
+  @@unique([date, iso_alpha_3])
+}
+
+model covid_state {
+  id                                  String
+  date                                DateTime @db.Date
+  confirmed                           Int?
+  deaths                              Int?
+  recovered                           Int?
+  tests                               Int?
+  vaccines                            Int?
+  people_vaccinated                   Int?
+  people_fully_vaccinated             Int?
+  hosp                                Int?
+  icu                                 Int?
+  vent                                Int?
+  school_closing                      Int?
+  workplace_closing                   Int?
+  cancel_events                       Int?
+  gatherings_restrictions             Int?
+  transport_closing                   Int?
+  stay_home_restrictions              Int?
+  internal_movement_restrictions      Int?
+  international_movement_restrictions Int?
+  information_campaigns               Int?
+  testing_policy                      Int?
+  contact_tracing                     Int?
+  facial_coverings                    Int?
+  vaccination_policy                  Int?
+  elderly_people_protection           Int?
+  government_response_index           Float?
+  stringency_index                    Float?
+  containment_health_index            Float?
+  economic_support_index              Float?
+
+  @@unique([date, id])
+}
+
+model states {
+    id                                   String @id
+    hindexes                            String[]
+    administrative_area_level           Int
+    administrative_area_level_1         String
+    administrative_area_level_2         String
+    administrative_area_level_3         String?
+    latitude                            Float?
+    longitude                           Float?
+    population                          Int?
+    iso_alpha_3                         String
+    iso_alpha_2                         String?
+    iso_numeric                         Int?
+    iso_currency                        String?
+    key_local                           String?
+    key_google_mobility                 String?
+    key_apple_mobility                  String?
+    key_jhu_csse                        String?
+    key_nuts                            String?
+    key_gadm                            String
 }

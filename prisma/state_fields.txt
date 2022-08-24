@@ -1,0 +1,17 @@
+  administrative_area_level           Int?
+  administrative_area_level_1         String
+  administrative_area_level_2         String
+  administrative_area_level_3         String?
+  latitude                            Float?
+  longitude                           Float?
+  population                          Int?
+  iso_alpha_3                         String
+  iso_alpha_2                         String?
+  iso_numeric                         Int?
+  iso_currency                        String?
+  key_local                           String?
+  key_google_mobility                 String?
+  key_apple_mobility                  String?
+  key_jhu_csse                        String?
+  key_nuts                            String?
+  key_gadm                            String

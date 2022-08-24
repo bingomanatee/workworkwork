@@ -14,18 +14,25 @@ import { Cron } from '@nestjs/schedule';
 import CovidDataDenorm from './CovidDataDenorm';
 import axios from 'axios';
 import _ from 'lodash';
+import { RecordBufferService } from '../../record-buffer/record-buffer.service';
+import CovidStateDataDenorm from './CovidStateDataDenorm';
+import { QueueManagerService } from '../../queues/queue-manager/queue-manager.service';
 
 const IDENTITY = (input) => input;
-const FLUSH_INTERVAL = 1000;
-const MESSAGE_INTERVAL = 10;
+
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const NOOP = () => {};
 const MAX_ROW_COUNT = 10000;
 
 const COUNTRY_CSV_URL = 'https://storage.covid19datahub.io/level/1.csv';
+const STATE_CSV_URL = 'https://storage.covid19datahub.io/level/2.csv';
 const COUNTRY_CSV_FILE_PATH = path.resolve(
   __dirname,
-  '../../../../data_files/1 2.csv',
+  '../../../../data_files/1.csv',
+);
+const STATE_CSV_FILE_PATH = path.resolve(
+  __dirname,
+  '../../../../data_files/2.csv',
 );
 
 @Injectable()
@@ -37,14 +44,22 @@ export class CsvService {
   constructor(
     private prismaService: PrismaService,
     @InjectQueue('tasks') private taskQueue: Queue,
+    private bufferService: RecordBufferService,
+    private queueService: QueueManagerService,
   ) {}
 
   static processCSV(
     fullPath,
-    { onError = IDENTITY, onData, onEnd = NOOP, onRecord = IDENTITY },
+    {
+      onError = IDENTITY,
+      cast = true,
+      onData,
+      onEnd = NOOP,
+      onRecord = IDENTITY,
+    },
   ) {
     const input = parse({
-      cast: true,
+      cast,
       cast_date: true,
       columns: true,
       delimiter: ',',
@@ -76,7 +91,9 @@ export class CsvService {
     if (!data.length) {
       if (this.pendingRecords.length) {
         data = this.pendingRecords.splice(0, MAX_ROW_COUNT);
-      } else return;
+      } else {
+        return;
+      }
     } else if (data.length > MAX_ROW_COUNT) {
       console.log('saving some of pendingRecords', data.length);
       const chunk = data.splice(0, MAX_ROW_COUNT);
@@ -101,7 +118,7 @@ export class CsvService {
       });
     } catch (err) {
       console.log('save error: ', err);
-      await this.prismaService.eventForTask(task.id, 'error saving records', {
+      await this.prismaService.eventForTask(task.id, 'error saving rows', {
         error: err.message,
       });
     }
@@ -117,27 +134,213 @@ export class CsvService {
    * @param task
    * @param type
    */
-  async readDataFiles(task, type) {
-    console.log('1readDataFiles ', COUNTRY_CSV_FILE_PATH);
+  async writeCsvRecords(task, type) {
+    const { data } = task;
+    console.log('----------- WRITE CSV RECORDS FOR ', data.type, '----------');
+    switch (data.type) {
+      case 'country':
+        await this.writeCountryRecords(task);
+        break;
+
+      case 'state':
+        await this.writeStateRecords(task);
+        break;
+    }
+  }
+
+  private statesByID = create(new Map());
+
+  addState(state, task) {
+    if (!this.statesByID.hasKey(state.id)) {
+      this.statesByID.set(state.id, state);
+
+      const { prisma } = this.prismaService;
+      if (!this.bufferService.buffers.has('state')) {
+        this.bufferService.init(
+          'state',
+          async (data) => {
+            return prisma.states.createMany({
+              data,
+              skipDuplicates: true,
+            });
+          },
+          async (records, err) => {
+            console.log('state error: ', err, records);
+          },
+          100,
+        );
+      }
+      this.bufferService.add('state', state, task);
+    }
+  }
+
+  private initStateRecordBuffer() {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const target = this;
-    if (!fs.existsSync(COUNTRY_CSV_FILE_PATH)) {
-      await this.prismaService.eventForTask(task.id, 'no datafile', {
-        path: COUNTRY_CSV_FILE_PATH,
-      });
+    if (!this.bufferService.buffers.has('state data')) {
+      this.bufferService.init(
+        'state data',
+        async (data, task) => {
+          await target.prismaService.prisma.covid_state.createMany({
+            data,
+            skipDuplicates: true,
+          });
+          await target.queueService.eventForTask(task.id, 'saved records', {
+            count: data.length,
+          });
+        },
+        async (data, err, task) => {
+          console.log('buffer error:', err);
+          await target.queueService.eventForTask(
+            task.id,
+            'buffer error saving records',
+            {
+              rows: data.slice(-5),
+              message: err.message,
+              stack: JSON.stringify(err.stack),
+            },
+          );
+        },
+        10000,
+      );
+    }
+  }
 
-      this.prismaService.finishTask(task, 'error');
+  async writeStateRecords(task) {
+    if (!fs.existsSync(STATE_CSV_FILE_PATH)) {
+      await this.queueService.taskError(task, 'no data file');
       return;
     }
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const target = this;
+    this.initStateRecordBuffer();
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+
+    console.log('writeStateRecords ', STATE_CSV_FILE_PATH);
+
     // await this.prismaService.prisma.covid_data_denormalized.deleteMany({});
     let badDataCount = 0;
     let error = null;
     let rows = 0;
+    await this.prismaService.prisma.covid_state.deleteMany({});
+    await CsvService.processCSV(STATE_CSV_FILE_PATH, {
+      cast: false,
+      onRecord(input) {
+        const { date, id } = input;
+        if (!(date && id)) {
+          badDataCount += 1;
+          console.log('bad input: ', input);
+          return null;
+        }
+        try {
+          const denorm = new CovidStateDataDenorm(input);
+          return {
+            state_data: CovidStateDataDenorm.toJSON(denorm),
+            state: CovidStateDataDenorm.toState(denorm),
+          };
+        } catch (err) {
+          console.log('state denorm error:', input, err);
+          return null;
+        }
+      },
+      async onData(row) {
+        if (!((rows + badDataCount) % 5000)) {
+          console.log(rows, 'rows, ', badDataCount, 'bad');
+        }
+        if (!row) {
+          ++badDataCount;
+          return;
+        }
+        ++rows;
+        const { state_data, state } = row;
+        target.bufferService.add('state data', state_data, task);
+        target.addState(state, task);
+      },
+      async onEnd() {
+        if (!error) {
+          await target.queueService.eventForTask(task.id, 'csv read', {
+            rows: target.pendingRecords.length,
+          });
+          await target.bufferService.flush('state data', task);
+          await target.bufferService.flush('state', task);
+          target.queueService.eventForTask(task.id, 'finished csv file', {
+            rows,
+            badDataCount,
+          });
+          target.queueService.finishTask(task);
+
+          const { task: hexTask, type: hexType } =
+            await target.prismaService.makeTask(
+              'localize states to hexes',
+              {},
+              task.id,
+            );
+          await target.queueService.addTaskToQueue(hexType, hexTask);
+        }
+      },
+      async onError(err) {
+        if (!error) {
+          error = err;
+          await target.queueService.eventForTask(task.id, 'csv error', {
+            message: err.message,
+          });
+
+          target.queueService.finishTask(task, 'error');
+        }
+      },
+    });
+  }
+
+  private initCountryRecordBuffer() {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const target = this;
+    if (!this.bufferService.buffers.has('country data')) {
+      this.bufferService.init(
+        'country data',
+        async (data, task) => {
+          await this.prismaService.prisma.covid_data_denormalized.createMany({
+            data,
+            skipDuplicates: true,
+          });
+          await target.queueService.eventForTask(task.id, 'saved records', {
+            count: data.length,
+          });
+        },
+        async (data, err, task) => {
+          console.log('buffer error:', err);
+          await target.queueService.eventForTask(
+            task.id,
+            'buffer error saving records',
+            {
+              rows: data.slice(-5),
+              message: err.message,
+              stack: JSON.stringify(err.stack),
+            },
+          );
+        },
+        10000,
+      );
+    }
+  }
+
+  async writeCountryRecords(task) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const target = this;
+    if (!fs.existsSync(COUNTRY_CSV_FILE_PATH)) {
+      await this.queueService.taskError(task, 'no datafile');
+      return;
+    }
+    this.initCountryRecordBuffer();
+    console.log('write country records ', COUNTRY_CSV_FILE_PATH);
+
+    let badDataCount = 0;
+    const error = null;
+    let rows = 0;
     await CsvService.processCSV(COUNTRY_CSV_FILE_PATH, {
       onRecord(input) {
         const { date, iso_alpha_3 } = input;
-        badDataCount += 1;
         if (!(date && iso_alpha_3)) {
+          badDataCount += 1;
           return null;
         }
         return new CovidDataDenorm(input);
@@ -148,49 +351,62 @@ export class CsvService {
           return;
         }
         ++rows;
-        target.pendingRecords.push(row);
-        if (target.pendingRecords.length >= MAX_ROW_COUNT) {
-          if (!target.saving) {
-            target.saveRows(task);
-          }
-        }
+        target.bufferService.add('country data', row, task);
       },
       async onEnd() {
         if (!error) {
-          await target.prismaService.eventForTask(task.id, 'csv read', {
-            rows: target.pendingRecords.length,
-          });
-          await target.saveRows(task);
-          target.prismaService.eventForTask(task.id, 'finished csv file', {
+          await target.bufferService.flush('country data', task);
+          await target.queueService.eventForTask(task.id, 'finished csv file', {
             rows,
             badDataCount,
           });
-          target.prismaService.finishTask(task);
+          await target.queueService.finishTask(task);
 
-          const { task: pivotTask, type } = await target.prismaService.makeTask(
+          await target.queueService.enqueue(
             'create pivot records',
             { level: 'country' },
+            {},
             task.parent_task_id,
           );
-
-          target.addToQueue(type, pivotTask);
         }
       },
       async onError(err) {
-        if (!error) {
-          error = err;
-          await target.prismaService.eventForTask(task.id, 'csv error', {
-            message: err.message,
-          });
-
-          target.prismaService.finishTask(task, 'error');
-        }
+        await target.queueService.taskError(task, err, 'csv error');
       },
     });
   }
 
-  public fetchDataFiles(task) {
+  public fetchStateSsvData(task) {
     console.log('--- fetching data files');
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const target = this;
+    axios({
+      method: 'get',
+      url: STATE_CSV_URL,
+      responseType: 'stream',
+    })
+      .then(function (response) {
+        const targetStream = fs.createWriteStream(STATE_CSV_FILE_PATH);
+        targetStream.on('finish', async () => {
+          await target.queueService.finishTask(task);
+          await target.queueService.enqueue(
+            'write csv records',
+            { type: 'state' },
+            {},
+            task.id,
+          );
+        });
+        targetStream.on('error', async (err) => {
+          await target.queueService.taskError(task, err);
+        });
+        response.data.pipe(targetStream);
+      })
+      .catch((err) => target.queueService.taskError(task, err));
+  }
+
+  public fetchCountryCsvData(task) {
+    console.log('--- fetching country data');
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const target = this;
     axios({
       method: 'get',
@@ -200,40 +416,24 @@ export class CsvService {
       .then(function (response) {
         const targetStream = fs.createWriteStream(COUNTRY_CSV_FILE_PATH);
         targetStream.on('finish', async () => {
-          await target.prismaService.finishTask(task);
-          const { type, task: writeTask } = await target.prismaService.makeTask(
+          await target.queueService.finishTask(task);
+
+          await target.queueService.enqueue(
             'write csv records',
-            { type: 'country' },
+            {
+              type: 'country',
+            },
+            {},
             task.id,
           );
-          target.addToQueue(type, writeTask);
         });
         targetStream.on('error', async (err) => {
-          await target.prismaService.eventForTask(
-            task.id,
-            'file write failure',
-            {
-              message: err.message,
-            },
-          );
-          return target.prismaService.finishTask(task, 'error');
+          await target.queueService.taskError(task, err, 'file write failure');
         });
         response.data.pipe(targetStream);
       })
       .catch(async (err) => {
-        await target.prismaService.eventForTask(task.id, 'axios failure', {
-          message: err.message,
-        });
-        return target.prismaService.finishTask(task, 'error');
+        await target.queueService.taskError(task, err, 'axios failure');
       });
-  }
-
-  private async addToQueue(type, task, data = {}) {
-    this.taskQueue.add({
-      ...data,
-      type: type.name,
-      type_id: type.id,
-      task_id: task.id,
-    });
   }
 }

@@ -28,9 +28,9 @@ export class TasksController {
     return this.tasksService.create(createTaskDto);
   }
 
-  @Post(':id')
-  repeat(@Param('id') id: string) {
-    return this.tasksService.repeatTask(id);
+  @Post('execute/:id')
+  repeat(@Param('id') id: string, @Body() data) {
+    return this.tasksService.repeatTask(id, data);
   }
 
   @Get()
